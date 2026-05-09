@@ -62,19 +62,22 @@ function cookiesToHeader(cookiesContent: string): string | null {
   return pairs.length > 0 ? pairs.join("; ") : null;
 }
 
-function buildArgs(url: string, cookiesContent?: string): string[] {
+function buildArgs(url: string, opts?: { username?: string; password?: string; cookiesContent?: string }): string[] {
   const args = ["--no-playlist", "--no-warnings"];
 
-  if (cookiesContent && cookiesContent.trim().length > 0) {
-    const cookieHeader = cookiesToHeader(cookiesContent);
+  // Username/password login (simpler than cookies for users)
+  if (opts?.username && opts?.password) {
+    args.push("-u", opts.username, "-p", opts.password);
+  }
+  // Fallback: cookies file if provided
+  else if (opts?.cookiesContent && opts.cookiesContent.trim().length > 0) {
+    const cookieHeader = cookiesToHeader(opts.cookiesContent);
     if (cookieHeader) {
-      // Write cookies to temp file AND add header (belt and suspenders)
       const tmpDir = isVercel ? "/tmp" : require("os").tmpdir();
       const cookieFile = path.join(tmpDir, `.cookies-${Date.now()}.txt`);
-      require("fs").writeFileSync(cookieFile, cookiesContent.trim(), "utf-8");
+      require("fs").writeFileSync(cookieFile, opts.cookiesContent.trim(), "utf-8");
       args.push("--cookies", cookieFile);
       args.push("--add-header", `Cookie: ${cookieHeader}`);
-      // Force web client with cookies
       const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
       if (isYouTube) {
         args.push("--extractor-args", "youtube:player_client=web");
@@ -109,13 +112,13 @@ function runYtDlp(bin: string, args: string[]): Promise<{ stdout: string; stderr
 
 export async function ytDlpJson(
   url: string,
-  cookiesContent?: string
+  opts?: { username?: string; password?: string; cookiesContent?: string }
 ): Promise<Record<string, unknown>> {
   const bin = await ensureYtDlp();
 
-  // Try with cookies first
-  if (cookiesContent && cookiesContent.trim().length > 0) {
-    const args = ["--dump-json", ...buildArgs(url, cookiesContent)];
+  // Try with credentials first
+  if (opts) {
+    const args = ["--dump-json", ...buildArgs(url, opts)];
     const result = await runYtDlp(bin, args);
 
     if (result.code === 0) {
@@ -123,41 +126,37 @@ export async function ytDlpJson(
       catch { /* fall through */ }
     }
 
-    // Cookies failed — on Vercel, inform clearly. Locally, retry without.
     const err = result.stderr.trim();
-    console.log("yt-dlp with cookies failed:", err.substring(0, 200));
+    console.log("yt-dlp with auth failed:", err.substring(0, 200));
 
     if (isVercel) {
       throw new Error(
-        "Les cookies n'ont pas fonctionné. Vérifiez que le fichier exporté contient des lignes .youtube.com " +
-        "(ouvrez le .txt pour vérifier). Si le problème persiste, utilisez l'app en local: npm run dev"
+        "Échec d'authentification. Vérifiez votre nom d'utilisateur et mot de passe."
       );
     }
 
-    // Local: retry without cookies (works on residential IP)
-    const retryArgs = ["--dump-json", ...buildArgs(url, undefined)];
+    // Local: retry without auth
+    const retryArgs = ["--dump-json", ...buildArgs(url)];
     const retryResult = await runYtDlp(bin, retryArgs);
-
     if (retryResult.code !== 0) {
-      const retryErr = retryResult.stderr.trim();
-      if (retryErr.includes("Sign in to confirm") || retryErr.includes("bot")) {
-        throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube.");
+      const rerr = retryResult.stderr.trim();
+      if (rerr.includes("login") || rerr.includes("rate-limit")) {
+        throw new Error("Authentification requise. Entrez vos identifiants.");
       }
-      throw new Error(retryErr.split("\n").pop() || `yt-dlp exited with code ${retryResult.code}`);
+      throw new Error(rerr.split("\n").pop() || `yt-dlp exited with code ${retryResult.code}`);
     }
-
     try { return JSON.parse(retryResult.stdout.trim()); }
     catch { throw new Error("Failed to parse video info"); }
   }
 
-  // No cookies path
-  const args = ["--dump-json", ...buildArgs(url, undefined)];
+  // No auth path
+  const args = ["--dump-json", ...buildArgs(url)];
   const result = await runYtDlp(bin, args);
 
   if (result.code !== 0) {
     const err = result.stderr.trim();
-    if (err.includes("Sign in to confirm") || err.includes("bot")) {
-      throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies).");
+    if (err.includes("login") || err.includes("rate-limit")) {
+      throw new Error("Authentification requise. Entrez vos identifiants ci-dessous.");
     }
     throw new Error(err.split("\n").pop() || `yt-dlp exited with code ${result.code}`);
   }
@@ -169,7 +168,7 @@ export async function ytDlpJson(
 export async function ytDlpDownload(
   url: string,
   formatId: string,
-  cookiesContent?: string
+  opts?: { username?: string; password?: string; cookiesContent?: string }
 ): Promise<string> {
   const bin = await ensureYtDlp();
   const { mkdtempSync, rmdirSync, readdirSync, existsSync: exists } = require("fs");
@@ -181,7 +180,7 @@ export async function ytDlpDownload(
 
     const args = [
       "-f", formatId,
-      ...buildArgs(url, cookiesContent),
+      ...buildArgs(url, opts),
       "--merge-output-format", "mp4",
       "-o", outputPath,
     ];

@@ -212,18 +212,19 @@ export default function Home() {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
-  const [cookiesText, setCookiesText] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("vg_cookies") || "";
+  const [username, setUsername] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("vg_user") || "";
     return "";
   });
-  const [showCookies, setShowCookies] = useState(false);
+  const [password, setPassword] = useState("");
+  const [showAuth, setShowAuth] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const platformCfg = PLATFORMS.find((p) => p.key === platform)!;
 
-  function updateCookies(value: string) {
-    setCookiesText(value);
-    if (typeof window !== "undefined") localStorage.setItem("vg_cookies", value);
+  function updateUsername(value: string) {
+    setUsername(value);
+    if (typeof window !== "undefined") localStorage.setItem("vg_user", value);
   }
 
   const handleFetchInfo = useCallback(
@@ -239,11 +240,11 @@ export default function Home() {
       setLoading(true);
       try {
         let res: Response;
-        if (cookiesText.trim()) {
+        if (username.trim() && password.trim()) {
           res = await fetch("/api/info", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: url.trim(), cookies: cookiesText }),
+            body: JSON.stringify({ url: url.trim(), username: username.trim(), password }),
           });
         } else {
           res = await fetch(`/api/info?url=${encodeURIComponent(url.trim())}`);
@@ -254,15 +255,15 @@ export default function Home() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erreur";
         setError(msg);
-        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque") || msg.includes("login") || msg.includes("rate-limit")) {
-          setShowCookies(true);
-          setHint("Cette plateforme nécessite des cookies. Connectez-vous sur le site, puis exportez avec l'extension.");
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque") || msg.includes("login") || msg.includes("rate-limit") || msg.includes("Authentification")) {
+          setShowAuth(true);
+          setHint("Identifiants requis. Entrez votre nom d'utilisateur et mot de passe (optionnel).");
         }
       } finally {
         setLoading(false);
       }
     },
-    [url, cookiesText, platformCfg.key]
+    [url, username, password, platformCfg.key]
   );
 
   async function handleDownload(format: Format) {
@@ -278,11 +279,11 @@ export default function Home() {
 
     try {
       let res: Response;
-      if (cookiesText.trim()) {
+      if (username.trim() && password.trim()) {
         res = await fetch("/api/download", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: url.trim(), id: format.id, cookies: cookiesText }),
+          body: JSON.stringify({ url: url.trim(), id: format.id, username: username.trim(), password }),
           signal: controller.signal,
         });
       } else {
@@ -444,27 +445,33 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Cookies toggle */}
-          <button type="button" onClick={() => setShowCookies(!showCookies)}
+          {/* Auth toggle (optional) */}
+          <button type="button" onClick={() => setShowAuth(!showAuth)}
             className="flex items-center gap-1.5 text-[10px] tracking-wider uppercase font-mono transition-colors cursor-pointer"
-            style={{ color: cookiesText.trim() ? "#22ffaa" : "#ffffff33" }}>
-            <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            style={{ color: username.trim() ? "#22ffaa" : "#ffffff33" }}>
+            <svg className={`w-3 h-3 transition-transform ${showAuth ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            COOKIES {cookiesText.trim() ? "● ACTIVE" : "(REQUIRED)"}
+            LOGIN {username.trim() ? "● " + username.trim() : "(optional)"}
           </button>
-          {showCookies && (
-            <div className="space-y-1.5">
-              <textarea value={cookiesText} onChange={(e) => updateCookies(e.target.value)}
-                placeholder="Paste cookies.txt content here..."
-                rows={3}
-                className="w-full px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono resize-y"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }} />
-              <p className="text-[9px] tracking-wider font-mono leading-relaxed" style={{ color: "#ffffff33" }}>
-                1. <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer"
-                  className="underline" style={{ color: platformCfg.neonColor }}>Get cookies.txt</a>
-                {" "}→ 2. Login to Instagram + Facebook → 3. Export ALL cookies → 4. Paste here
-              </p>
+          {showAuth && (
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => updateUsername(e.target.value)}
+                placeholder="Username"
+                className="px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+              />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password"
+                className="px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+              />
             </div>
           )}
         </form>

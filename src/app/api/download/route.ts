@@ -55,13 +55,17 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const url = body.url as string;
     const formatId = body.id as string;
-    const cookies = body.cookies as string | undefined;
+    const opts = {
+      username: body.username as string | undefined,
+      password: body.password as string | undefined,
+      cookiesContent: body.cookies as string | undefined,
+    };
 
     if (!url || !formatId) {
       return NextResponse.json({ error: "URL ou format manquant" }, { status: 400 });
     }
 
-    const filePath = await ytDlpDownload(url, formatId, cookies);
+    const filePath = await ytDlpDownload(url, formatId, opts);
     return streamFile(filePath);
   } catch (err) {
     console.error("yt-dlp download error:", err);

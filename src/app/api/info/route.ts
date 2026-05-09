@@ -8,8 +8,8 @@ function formatSize(bytes: number | undefined): string {
   return `${mb.toFixed(1)} MB`;
 }
 
-async function getInfo(url: string, cookies?: string) {
-  const info = await ytDlpJson(url, cookies);
+async function getInfo(url: string, opts?: { username?: string; password?: string; cookiesContent?: string }) {
+  const info = await ytDlpJson(url, opts);
   const formats = (info.formats as Array<Record<string, unknown>>) || [];
   const duration = (info.duration as number) || 0;
   const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
@@ -151,13 +151,17 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const url = body.url as string;
-    const cookies = body.cookies as string | undefined;
+    const opts = {
+      username: body.username as string | undefined,
+      password: body.password as string | undefined,
+      cookiesContent: body.cookies as string | undefined,
+    };
 
     if (!url) {
       return NextResponse.json({ error: "URL manquante" }, { status: 400 });
     }
 
-    const data = await getInfo(url, cookies);
+    const data = await getInfo(url, opts);
     return NextResponse.json(data);
   } catch (err) {
     console.error("yt-dlp error:", err);
