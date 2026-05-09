@@ -1,0 +1,6 @@
+node_modules/
+.next/
+.tmp-dl-*/
+*.exe
+*-player-script.js
+.claude/
