@@ -127,7 +127,7 @@ function RetroProgressBar({
   glowColor,
 }: {
   progress: DownloadProgress;
-  formatLabel: string;
+  _formatLabel: string;
   glowColor: string;
 }) {
   const elapsed = Date.now() - progress.startTime;
@@ -584,7 +584,7 @@ export default function Home() {
                 </select>
               )}
               <span className="text-[11px] text-amber-500/50">
-                {currentPlatform.label} nécessite une connexion navigateur
+                {currentPlatform.label} nécessite une connexion navigateur (local uniquement)
               </span>
             </div>
           )}

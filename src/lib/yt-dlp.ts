@@ -4,11 +4,12 @@ import path from "path";
 
 let binaryPath: string | null = null;
 
+const isVercel = !!process.env.VERCEL;
+
 async function ensureBinary(): Promise<string> {
   if (binaryPath) return binaryPath;
 
-  // Vercel/Linux path
-  const tmpDir = process.env.VERCEL ? "/tmp" : process.cwd();
+  const tmpDir = isVercel ? "/tmp" : process.cwd();
   const ext = process.platform === "win32" ? ".exe" : "";
   const dest = path.join(tmpDir, `yt-dlp${ext}`);
 
@@ -24,9 +25,7 @@ async function ensureBinary(): Promise<string> {
     return local;
   }
 
-  // Download yt-dlp binary
-  // On Linux: yt-dlp_linux is the standalone binary (Python bundled, no system deps)
-  // On Windows: yt-dlp.exe is the standalone .exe
+  // Download yt-dlp standalone binary
   const url =
     process.platform === "win32"
       ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
@@ -43,21 +42,42 @@ async function ensureBinary(): Promise<string> {
   return dest;
 }
 
+function buildArgs(url: string, cookies?: string): string[] {
+  const args = ["--no-playlist", "--no-warnings"];
+
+  // On Vercel (serverless), --cookies-from-browser can NEVER work (no browser installed).
+  // On local machine, use it only if the user explicitly requested it.
+  if (cookies && !isVercel) {
+    args.push("--cookies-from-browser", cookies);
+  }
+
+  // Use mobile client to reduce bot detection on datacenter IPs
+  // This helps YouTube work on Vercel without cookies
+  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+  if (isYouTube) {
+    args.push("--extractor-args", "youtube:player_client=ios");
+  }
+
+  args.push(url);
+  return args;
+}
+
 export async function ytDlpJson(
   url: string,
   cookies?: string
 ): Promise<Record<string, unknown>> {
   const bin = await ensureBinary();
 
+  // Reject cookies on Vercel clearly
+  if (cookies && isVercel) {
+    throw new Error(
+      "L'authentification par cookies n'est pas disponible sur Vercel. " +
+      "Déployez l'application en local pour utiliser Instagram/Facebook."
+    );
+  }
+
   return new Promise((resolve, reject) => {
-    const args = ["--dump-json", "--no-playlist", "--no-warnings"];
-
-    if (cookies) {
-      args.push("--cookies-from-browser", cookies);
-    }
-
-    args.push(url);
-
+    const args = ["--dump-json", ...buildArgs(url, cookies)];
     const proc = spawn(bin, args);
 
     let stdout = "";
@@ -71,7 +91,16 @@ export async function ytDlpJson(
     });
     proc.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(stderr.trim() || `yt-dlp exited with code ${code}`));
+        const err = stderr.trim();
+        // Friendly message for bot detection
+        if (err.includes("Sign in to confirm")) {
+          reject(new Error(
+            "YouTube a détecté une requête automatique (IP datacenter Vercel). " +
+            "Essayez de redéployer ou utilisez l'app en local."
+          ));
+          return;
+        }
+        reject(new Error(err || `yt-dlp exited with code ${code}`));
         return;
       }
       try {
@@ -92,24 +121,23 @@ export async function ytDlpDownload(
   const bin = await ensureBinary();
   const { mkdtempSync, rmdirSync, readdirSync, existsSync: exists } = require("fs");
 
+  if (cookies && isVercel) {
+    throw new Error(
+      "L'authentification par cookies n'est pas disponible sur Vercel."
+    );
+  }
+
   return new Promise((resolve, reject) => {
-    const tmpBase = process.env.VERCEL ? "/tmp" : process.cwd();
+    const tmpBase = isVercel ? "/tmp" : process.cwd();
     const tmpDir = mkdtempSync(path.join(tmpBase, ".tmp-dl-"));
     const outputPath = path.join(tmpDir, "video.%(ext)s");
 
     const args = [
       "-f", formatId,
-      "--no-playlist",
-      "--no-warnings",
+      ...buildArgs(url, cookies),
       "--merge-output-format", "mp4",
       "-o", outputPath,
     ];
-
-    if (cookies) {
-      args.splice(0, 0, "--cookies-from-browser", cookies);
-    }
-
-    args.push(url);
 
     const proc = spawn(bin, args, {
       stdio: ["ignore", "pipe", "pipe"],
@@ -124,7 +152,14 @@ export async function ytDlpDownload(
     proc.on("close", (code) => {
       if (code !== 0) {
         try { rmdirSync(tmpDir, { recursive: true }); } catch {}
-        reject(new Error(stderr.trim().split("\n").pop() || `yt-dlp exited with code ${code}`));
+        const err = stderr.trim();
+        if (err.includes("Sign in to confirm")) {
+          reject(new Error(
+            "YouTube a détecté une requête automatique (IP datacenter Vercel)."
+          ));
+          return;
+        }
+        reject(new Error(err.split("\n").pop() || `yt-dlp exited with code ${code}`));
         return;
       }
 
