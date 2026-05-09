@@ -1,10 +1,8 @@
-import { spawn, execSync } from "child_process";
+import { spawn } from "child_process";
 import { existsSync, chmodSync, writeFileSync } from "fs";
 import path from "path";
-import { tmpdir } from "os";
 
 let ytDlpPath: string | null = null;
-let ffmpegPath: string | null = null;
 
 const isVercel = !!process.env.VERCEL;
 const isWin = process.platform === "win32";
@@ -36,91 +34,26 @@ async function ensureYtDlp(): Promise<string> {
   return dest;
 }
 
-async function ensureFfmpeg(): Promise<string | null> {
-  if (ffmpegPath) return ffmpegPath;
-
-  // Check if ffmpeg is already in PATH (local dev)
-  try {
-    execSync("ffmpeg -version", { stdio: "ignore" });
-    ffmpegPath = "ffmpeg";
-    return ffmpegPath;
-  } catch {}
-
-  // Try common paths
-  const commonPaths = isWin
-    ? ["C:\\ffmpeg\\bin\\ffmpeg.exe"]
-    : ["/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg"];
-  for (const p of commonPaths) {
-    if (existsSync(p)) { ffmpegPath = p; return p; }
-  }
-
-  // On Vercel/Linux, download static ffmpeg binary
-  if (!isWin) {
-    try {
-      const tmpDir = isVercel ? "/tmp" : tmpdir();
-      const dest = path.join(tmpDir, "ffmpeg");
-
-      if (existsSync(dest)) { ffmpegPath = dest; return dest; }
-
-      // Download static ffmpeg from yt-dlp's FFmpeg-Builds
-      const archiveUrl = "https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz";
-      const res = await fetch(archiveUrl);
-      if (!res.ok) return null;
-
-      const archivePath = path.join(tmpDir, "ffmpeg.tar.xz");
-      const buf = Buffer.from(await res.arrayBuffer());
-      require("fs").writeFileSync(archivePath, buf);
-
-      // Extract ffmpeg binary
-      execSync(`tar -xf "${archivePath}" -C "${tmpDir}" --strip-components=2 --wildcards "*/ffmpeg"`, {
-        stdio: "ignore",
-        timeout: 30000,
-      });
-
-      // Clean up archive
-      try { require("fs").unlinkSync(archivePath); } catch {}
-
-      if (existsSync(dest)) {
-        chmodSync(dest, 0o755);
-        ffmpegPath = dest;
-        return dest;
-      }
-    } catch (err) {
-      console.error("Failed to setup ffmpeg:", err);
-      return null;
-    }
-  }
-
-  return null;
-}
-
 function writeCookiesFile(cookiesContent: string): string {
-  const tmpDir = isVercel ? "/tmp" : tmpdir();
-  const cookieFile = path.join(tmpDir, `.yt-dlp-cookies-${Date.now()}.txt`);
+  const tmpDir = isVercel ? "/tmp" : require("os").tmpdir();
+  const cookieFile = path.join(tmpDir, `.cookies-${Date.now()}.txt`);
   writeFileSync(cookieFile, cookiesContent, "utf-8");
   return cookieFile;
 }
 
-async function buildArgs(url: string, cookiesContent?: string): Promise<string[]> {
+function buildArgs(url: string, cookiesContent?: string): string[] {
   const args = ["--no-playlist", "--no-warnings"];
 
   if (cookiesContent && cookiesContent.trim().length > 0) {
-    const cookieFile = writeCookiesFile(cookiesContent);
-    args.push("--cookies", cookieFile);
-  }
-
-  // Use ffmpeg if available (needed for merging video+audio)
-  const ffmpeg = await ensureFfmpeg();
-  if (ffmpeg) {
-    args.push("--ffmpeg-location", ffmpeg);
-  }
-
-  // YouTube on Vercel (no cookies): use fallback client chain
-  // default (web) = best quality, might be blocked on datacenter IPs
-  // android = always works but limited to 360p — acceptable fallback
-  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
-  if (isYouTube && !cookiesContent) {
-    args.push("--extractor-args", "youtube:player_client=default,android");
+    args.push("--cookies", writeCookiesFile(cookiesContent));
+  } else {
+    // Without cookies on Vercel: use Android client to avoid bot detection.
+    // Android gives 360p with audio (pre-muxed, no ffmpeg needed).
+    // Locally: use default client for full quality.
+    const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+    if (isYouTube && isVercel) {
+      args.push("--extractor-args", "youtube:player_client=android");
+    }
   }
 
   args.push(url);
@@ -134,33 +67,28 @@ export async function ytDlpJson(
   const bin = await ensureYtDlp();
 
   return new Promise((resolve, reject) => {
-    buildArgs(url, cookiesContent).then((baseArgs) => {
-      const args = ["--dump-json", ...baseArgs];
-      const proc = spawn(bin, args);
+    const args = ["--dump-json", ...buildArgs(url, cookiesContent)];
+    const proc = spawn(bin, args);
 
-      let stdout = "";
-      let stderr = "";
+    let stdout = "";
+    let stderr = "";
 
-      proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-      proc.on("close", (code) => {
-        if (code !== 0) {
-          const err = stderr.trim();
-          if (err.includes("Sign in to confirm") || err.includes("bot")) {
-            reject(new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube pour continuer."));
-            return;
-          }
-          reject(new Error(err || `yt-dlp exited with code ${code}`));
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        const err = stderr.trim();
+        if (err.includes("Sign in to confirm") || err.includes("bot")) {
+          reject(new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies)."));
           return;
         }
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
-          reject(new Error("Failed to parse video info"));
-        }
-      });
-      proc.on("error", reject);
-    }).catch(reject);
+        reject(new Error(err.split("\n").pop() || `yt-dlp exited with code ${code}`));
+        return;
+      }
+      try { resolve(JSON.parse(stdout.trim())); }
+      catch { reject(new Error("Failed to parse video info")); }
+    });
+    proc.on("error", reject);
   });
 }
 
@@ -173,57 +101,51 @@ export async function ytDlpDownload(
   const { mkdtempSync, rmdirSync, readdirSync, existsSync: exists } = require("fs");
 
   return new Promise((resolve, reject) => {
-    buildArgs(url, cookiesContent).then((baseArgs) => {
-      const tmpBase = isVercel ? "/tmp" : process.cwd();
-      const tmpDir = mkdtempSync(path.join(tmpBase, ".tmp-dl-"));
-      const outputPath = path.join(tmpDir, "video.%(ext)s");
+    const tmpBase = isVercel ? "/tmp" : process.cwd();
+    const tmpDir = mkdtempSync(path.join(tmpBase, ".tmp-dl-"));
+    const outputPath = path.join(tmpDir, "video.%(ext)s");
 
-      const args = [
-        "-f", formatId,
-        ...baseArgs,
-        "--merge-output-format", "mp4",
-        "-o", outputPath,
-      ];
+    const args = [
+      "-f", formatId,
+      ...buildArgs(url, cookiesContent),
+      "--merge-output-format", "mp4",
+      "-o", outputPath,
+    ];
 
-      const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const proc = spawn(bin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderr = "";
 
-      let stderr = "";
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
 
-      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-
-      proc.on("close", (code) => {
-        if (code !== 0) {
-          try { rmdirSync(tmpDir, { recursive: true }); } catch {}
-          const err = stderr.trim();
-          if (err.includes("Sign in to confirm") || err.includes("bot")) {
-            reject(new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube."));
-            return;
-          }
-          reject(new Error(err.split("\n").pop() || `yt-dlp exited with code ${code}`));
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        try { rmdirSync(tmpDir, { recursive: true }); } catch {}
+        const err = stderr.trim();
+        if (err.includes("Sign in to confirm") || err.includes("bot")) {
+          reject(new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube."));
           return;
         }
+        reject(new Error(err.split("\n").pop() || `yt-dlp exited with code ${code}`));
+        return;
+      }
 
-        try {
-          const files = readdirSync(tmpDir);
-          const mp4 = files.find((f: string) => f.endsWith(".mp4"));
-          const webm = files.find((f: string) => f.endsWith(".webm"));
-          const mkv = files.find((f: string) => f.endsWith(".mkv"));
-          const foundFile = path.join(tmpDir, mp4 || webm || mkv || files[0] || "");
+      try {
+        const files = readdirSync(tmpDir);
+        const found = files.find((f: string) => f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mkv"));
+        const foundFile = path.join(tmpDir, found || files[0] || "");
 
-          if (!foundFile || !exists(foundFile)) {
-            rmdirSync(tmpDir, { recursive: true });
-            reject(new Error("Fichier téléchargé introuvable"));
-            return;
-          }
-
-          resolve(foundFile);
-        } catch (err) {
-          try { rmdirSync(tmpDir, { recursive: true }); } catch {}
-          reject(err instanceof Error ? err : new Error("Erreur inconnue"));
+        if (!foundFile || !exists(foundFile)) {
+          rmdirSync(tmpDir, { recursive: true });
+          reject(new Error("Fichier téléchargé introuvable"));
+          return;
         }
-      });
+        resolve(foundFile);
+      } catch (err) {
+        try { rmdirSync(tmpDir, { recursive: true }); } catch {}
+        reject(err instanceof Error ? err : new Error("Erreur inconnue"));
+      }
+    });
 
-      proc.on("error", reject);
-    }).catch(reject);
+    proc.on("error", reject);
   });
 }
