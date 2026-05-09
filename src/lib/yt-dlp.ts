@@ -47,12 +47,12 @@ function buildArgs(url: string, cookiesContent?: string): string[] {
   if (cookiesContent && cookiesContent.trim().length > 0) {
     args.push("--cookies", writeCookiesFile(cookiesContent));
   } else {
-    // Without cookies on Vercel: use Android client to avoid bot detection.
-    // Android gives 360p with audio (pre-muxed, no ffmpeg needed).
-    // Locally: use default client for full quality.
+    // Without cookies on Vercel: use tv_embed client to avoid bot detection.
+    // tv_embed has more formats than android, better chance of working.
+    // Locally: use default client for full quality (residential IP).
     const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
     if (isYouTube && isVercel) {
-      args.push("--extractor-args", "youtube:player_client=android");
+      args.push("--extractor-args", "youtube:player_client=tv_embed");
     }
   }
 

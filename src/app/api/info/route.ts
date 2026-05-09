@@ -12,7 +12,37 @@ async function getInfo(url: string, cookies?: string) {
   const info = await ytDlpJson(url, cookies);
   const formats = (info.formats as Array<Record<string, unknown>>) || [];
   const duration = (info.duration as number) || 0;
+  const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
 
+  // For Instagram/Facebook: use simple "best" format (pre-muxed, audio+video)
+  // No ffmpeg needed, always includes audio
+  if (!isYouTube) {
+    // Find the best available format (usually a single mp4 with audio)
+    const videoFormat = formats.find((f) => {
+      const v = f.vcodec as string;
+      const a = f.acodec as string;
+      return v && v !== "none" && a && a !== "none";
+    });
+
+    const size = videoFormat?.filesize_approx as number || videoFormat?.filesize as number || 0;
+
+    return {
+      title: (info.title || info.fulltitle || "Sans titre") as string,
+      author: (info.uploader || info.channel || info.creator || "Inconnu") as string,
+      duration: info.duration_string || `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`,
+      thumbnail: (info.thumbnail as string) || "",
+      formats: [{
+        id: "best",
+        quality: "Meilleure qualité",
+        ext: "mp4",
+        size: size > 0 ? formatSize(size) : "Taille estimée",
+        estimatedBytes: size > 0 ? size : 0,
+        isAudio: false,
+      }],
+    };
+  }
+
+  // YouTube: full quality selection with height-based options
   let bestAudioSize = 0;
   for (const f of formats) {
     const vcodec = f.vcodec as string;
