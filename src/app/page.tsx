@@ -17,9 +17,6 @@ type VideoInfo = {
   duration: string;
   thumbnail: string;
   formats: Format[];
-  webpage_url?: string;
-  extractor?: string;
-  hint?: string;
 };
 
 type Platform = "youtube" | "instagram" | "facebook";
@@ -38,7 +35,6 @@ const PLATFORMS: {
   placeholder: string;
   gradient: string;
   glowColor: string;
-  needsAuth: boolean;
   urlPattern: RegExp;
 }[] = [
   {
@@ -48,7 +44,6 @@ const PLATFORMS: {
     placeholder: "https://www.youtube.com/watch?v=...",
     gradient: "from-red-600 to-rose-600",
     glowColor: "rgba(239,68,68,0.6)",
-    needsAuth: false,
     urlPattern: /^(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)/,
   },
   {
@@ -58,7 +53,6 @@ const PLATFORMS: {
     placeholder: "https://www.instagram.com/reel/...",
     gradient: "from-pink-500 to-purple-500",
     glowColor: "rgba(236,72,153,0.6)",
-    needsAuth: true,
     urlPattern: /^(https?:\/\/)?(www\.)?instagram\.com\/(reel\/|p\/|tv\/|stories\/)/,
   },
   {
@@ -68,8 +62,7 @@ const PLATFORMS: {
     placeholder: "https://www.facebook.com/watch/?v=...",
     gradient: "from-blue-600 to-sky-500",
     glowColor: "rgba(37,99,235,0.6)",
-    needsAuth: true,
-    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/v\/|video|plugins\/video)|fb\.watch\/)/,
+    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/v\/|video\/|plugins\/video)|fb\.watch\/)/,
   },
 ];
 
@@ -85,14 +78,6 @@ function validateUrl(url: string, platform: Platform): string | null {
   }
   return null;
 }
-
-const BROWSERS = [
-  { key: "chrome", label: "Chrome" },
-  { key: "edge", label: "Edge" },
-  { key: "firefox", label: "Firefox" },
-  { key: "brave", label: "Brave" },
-  { key: "opera", label: "Opera" },
-];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -123,7 +108,7 @@ function DownloadIcon() {
 
 function RetroProgressBar({
   progress,
-  formatLabel,
+  _formatLabel,
   glowColor,
 }: {
   progress: DownloadProgress;
@@ -132,7 +117,6 @@ function RetroProgressBar({
 }) {
   const elapsed = Date.now() - progress.startTime;
 
-  // Real percentage based on bytes downloaded vs estimated total
   const percentage = progress.totalBytes > 0
     ? Math.min(99, Math.round((progress.bytesDownloaded / progress.totalBytes) * 100))
     : 0;
@@ -140,7 +124,6 @@ function RetroProgressBar({
   const blocks = 40;
   const filled = Math.floor((percentage / 100) * blocks);
 
-  // ETA calculation
   let eta = "";
   if (progress.speed > 0 && progress.totalBytes > 0) {
     const remaining = progress.totalBytes - progress.bytesDownloaded;
@@ -161,22 +144,18 @@ function RetroProgressBar({
             boxShadow: `0 0 40px ${glowColor.replace("0.6", "0.15")}, 0 0 80px ${glowColor.replace("0.6", "0.08")}, inset 0 0 60px rgba(0,255,255,0.02)`,
           }}
         >
-          {/* Scanlines overlay */}
           <div
             className="absolute inset-0 rounded-2xl pointer-events-none opacity-[0.03]"
             style={{
               backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.5) 2px, rgba(0,255,255,0.5) 3px)",
             }}
           />
-
-          {/* Corner decorations */}
           <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-500/40 rounded-tl-lg" />
           <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-500/40 rounded-tr-lg" />
           <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-500/40 rounded-bl-lg" />
           <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500/40 rounded-br-lg" />
 
           <div className="relative">
-            {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00ffff]" />
@@ -189,7 +168,6 @@ function RetroProgressBar({
               </span>
             </div>
 
-            {/* Progress bar container */}
             <div
               className="h-8 rounded-lg relative overflow-hidden mb-3"
               style={{
@@ -198,7 +176,6 @@ function RetroProgressBar({
                 boxShadow: "inset 0 0 20px rgba(0,0,0,0.5)",
               }}
             >
-              {/* Filled portion */}
               <div
                 className="absolute inset-y-0 left-0 transition-all duration-200 rounded-lg"
                 style={{
@@ -207,8 +184,6 @@ function RetroProgressBar({
                   boxShadow: `inset 0 0 15px rgba(0,255,255,0.1)`,
                 }}
               />
-
-              {/* Segments overlay */}
               <div className="absolute inset-0 flex gap-[2px] p-[2px]">
                 {Array.from({ length: blocks }).map((_, i) => (
                   <div
@@ -225,8 +200,6 @@ function RetroProgressBar({
                   />
                 ))}
               </div>
-
-              {/* Leading edge glow */}
               {percentage > 0 && (
                 <div
                   className="absolute top-0 bottom-0 w-[2px]"
@@ -239,48 +212,28 @@ function RetroProgressBar({
               )}
             </div>
 
-            {/* Stats grid */}
             <div className="grid grid-cols-4 gap-3">
               <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">
-                  Progrès
-                </div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">
-                  {percentage}%
-                </div>
+                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Progrès</div>
+                <div className="text-sm font-mono text-cyan-300 font-semibold">{percentage}%</div>
               </div>
               <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">
-                  Téléchargé
-                </div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">
-                  {formatBytes(progress.bytesDownloaded)}
-                </div>
+                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Téléchargé</div>
+                <div className="text-sm font-mono text-cyan-300 font-semibold">{formatBytes(progress.bytesDownloaded)}</div>
               </div>
               <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">
-                  Vitesse
-                </div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">
-                  {formatSpeed(progress.speed)}
-                </div>
+                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Vitesse</div>
+                <div className="text-sm font-mono text-cyan-300 font-semibold">{formatSpeed(progress.speed)}</div>
               </div>
               <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">
-                  {eta ? "ETA" : "Temps"}
-                </div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">
-                  {eta || formatTime(elapsed)}
-                </div>
+                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">{eta ? "ETA" : "Temps"}</div>
+                <div className="text-sm font-mono text-cyan-300 font-semibold">{eta || formatTime(elapsed)}</div>
               </div>
             </div>
 
-            {/* Bottom status line */}
             <div className="mt-4 flex items-center gap-2">
               <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
-              <span className="text-[9px] font-mono text-cyan-500/40 tracking-widest animate-pulse">
-                ● EN COURS
-              </span>
+              <span className="text-[9px] font-mono text-cyan-500/40 tracking-widest animate-pulse">● EN COURS</span>
               <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
             </div>
           </div>
@@ -299,8 +252,8 @@ export default function Home() {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
-  const [cookieBrowser, setCookieBrowser] = useState("chrome");
-  const [useCookies, setUseCookies] = useState(false);
+  const [cookiesText, setCookiesText] = useState("");
+  const [showCookies, setShowCookies] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   const currentPlatform = PLATFORMS.find((p) => p.key === platform)!;
@@ -312,7 +265,6 @@ export default function Home() {
       setHint("");
       setInfo(null);
 
-      // Validate URL matches selected platform
       const validationError = validateUrl(url, currentPlatform.key);
       if (validationError) {
         setError(validationError);
@@ -323,30 +275,30 @@ export default function Home() {
       setLoading(true);
 
       try {
-        const cookiesParam =
-          useCookies || currentPlatform.needsAuth
-            ? `&cookies=${encodeURIComponent(cookieBrowser)}`
-            : "";
-        const res = await fetch(`/api/info?url=${encodeURIComponent(url)}${cookiesParam}`);
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.error || "Une erreur est survenue");
+        let res: Response;
+        if (cookiesText.trim()) {
+          res = await fetch("/api/info", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: url.trim(), cookies: cookiesText }),
+          });
+        } else {
+          res = await fetch(`/api/info?url=${encodeURIComponent(url.trim())}`);
         }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Une erreur est survenue");
         setInfo(data);
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Une erreur est survenue";
         setError(msg);
-        if (
-          currentPlatform.needsAuth &&
-          (msg.includes("Cookie") || msg.includes("logged-in") || msg.includes("login") || msg.includes("empty"))
-        ) {
-          setHint("Cette plateforme nécessite une authentification. Activez les cookies navigateur ci-dessous.");
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("logged-in") || msg.includes("login")) {
+          setHint("Ajoutez vos cookies dans la section ci-dessous.");
         }
       } finally {
         setLoading(false);
       }
     },
-    [url, useCookies, cookieBrowser, currentPlatform]
+    [url, cookiesText, currentPlatform]
   );
 
   async function handleDownload(format: Format) {
@@ -362,14 +314,20 @@ export default function Home() {
     abortRef.current = controller;
 
     try {
-      const cookiesParam =
-        useCookies || currentPlatform.needsAuth
-          ? `&cookies=${encodeURIComponent(cookieBrowser)}`
-          : "";
-      const res = await fetch(
-        `/api/download?url=${encodeURIComponent(url)}&id=${encodeURIComponent(format.id)}${cookiesParam}`,
-        { signal: controller.signal }
-      );
+      let res: Response;
+      if (cookiesText.trim()) {
+        res = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: url.trim(), id: format.id, cookies: cookiesText }),
+          signal: controller.signal,
+        });
+      } else {
+        res = await fetch(
+          `/api/download?url=${encodeURIComponent(url.trim())}&id=${encodeURIComponent(format.id)}`,
+          { signal: controller.signal }
+        );
+      }
 
       if (!res.ok) {
         const data = await res.json();
@@ -396,30 +354,15 @@ export default function Home() {
           const deltaTime = (now - lastTick) / 1000;
           const deltaBytes = downloaded - lastBytes;
           const speed = deltaTime > 0 ? deltaBytes / deltaTime : 0;
-
-          setDownloadProgress({
-            bytesDownloaded: downloaded,
-            speed,
-            startTime,
-            totalBytes,
-          });
-
+          setDownloadProgress({ bytesDownloaded: downloaded, speed, startTime, totalBytes });
           lastTick = now;
           lastBytes = downloaded;
         }
       }
 
-      // Final update
       const totalTime = (Date.now() - startTime) / 1000;
       const avgSpeed = totalTime > 0 ? downloaded / totalTime : 0;
-      setDownloadProgress({
-        bytesDownloaded: downloaded,
-        speed: avgSpeed,
-        startTime,
-        totalBytes: downloaded, // set to downloaded so bar shows 99%
-      });
-
-      // Small delay to see the completed state
+      setDownloadProgress({ bytesDownloaded: downloaded, speed: avgSpeed, startTime, totalBytes: downloaded });
       await new Promise((r) => setTimeout(r, 400));
 
       const blob = new Blob(chunks as BlobPart[]);
@@ -434,9 +377,7 @@ export default function Home() {
       document.body.removeChild(a);
       URL.revokeObjectURL(blobUrl);
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        // user cancelled
-      } else {
+      if (!(err instanceof DOMException && err.name === "AbortError")) {
         setError(err instanceof Error ? err.message : "Échec du téléchargement");
       }
     } finally {
@@ -455,14 +396,9 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-zinc-950 text-white selection:bg-white/20">
-      {/* Download progress overlay */}
       {downloadProgress && (
         <>
-          <RetroProgressBar
-            progress={downloadProgress}
-            formatLabel={downloading || ""}
-            glowColor={currentPlatform.glowColor}
-          />
+          <RetroProgressBar progress={downloadProgress} _formatLabel={downloading || ""} glowColor={currentPlatform.glowColor} />
           <button
             onClick={cancelDownload}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] px-6 py-2 rounded-full bg-red-900/60 border border-red-500/30 text-red-300 text-xs font-mono tracking-widest uppercase hover:bg-red-800/60 transition-colors cursor-pointer backdrop-blur-sm"
@@ -472,13 +408,10 @@ export default function Home() {
         </>
       )}
 
-      {/* Header */}
       <header className="border-b border-zinc-800/30 bg-zinc-950/70 backdrop-blur-xl sticky top-0 z-40">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div
-              className={`w-9 h-9 rounded-xl bg-gradient-to-br ${currentPlatform.gradient} flex items-center justify-center text-white font-bold shadow-lg shadow-current/20`}
-            >
+            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${currentPlatform.gradient} flex items-center justify-center text-white font-bold shadow-lg shadow-current/20`}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
@@ -488,9 +421,7 @@ export default function Home() {
               <p className="text-[11px] text-zinc-500 leading-tight">Downloader universel</p>
             </div>
           </div>
-          <div className="text-[11px] text-zinc-600">
-            Qualité native
-          </div>
+          <div className="text-[11px] text-zinc-600">Qualité native</div>
         </div>
       </header>
 
@@ -500,14 +431,7 @@ export default function Home() {
           {PLATFORMS.map((p) => (
             <button
               key={p.key}
-              onClick={() => {
-                setPlatform(p.key);
-                setInfo(null);
-                setError("");
-                setHint("");
-                setUrl("");
-                setUseCookies(p.needsAuth);
-              }}
+              onClick={() => { setPlatform(p.key); setInfo(null); setError(""); setHint(""); setUrl(""); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
                 platform === p.key
                   ? `bg-gradient-to-r ${p.gradient} text-white shadow-lg shadow-current/10`
@@ -520,7 +444,7 @@ export default function Home() {
           ))}
         </div>
 
-        {/* URL input + cookies settings */}
+        {/* URL input */}
         <form onSubmit={handleFetchInfo} className="mb-6 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2.5">
             <div className="flex-1 relative">
@@ -557,37 +481,38 @@ export default function Home() {
             </button>
           </div>
 
-          {currentPlatform.needsAuth && (
-            <div className="flex items-center gap-3 p-2.5 rounded-lg bg-amber-950/20 border border-amber-800/20">
-              <div className="flex items-center gap-2">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={useCookies}
-                    onChange={(e) => setUseCookies(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer"
-                  />
-                  <span className="text-xs text-amber-300/80">Cookies</span>
-                </label>
+          {/* Cookies section */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowCookies(!showCookies)}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+            >
+              <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <span>Cookies {cookiesText.trim() ? "✓" : "(optionnel)"}</span>
+              <span className="text-zinc-600">— nécessaire pour Instagram/Facebook, recommandé pour YouTube</span>
+            </button>
+            {showCookies && (
+              <div className="mt-2 space-y-2">
+                <textarea
+                  value={cookiesText}
+                  onChange={(e) => setCookiesText(e.target.value)}
+                  placeholder="Collez ici le contenu de votre fichier cookies.txt (format Netscape)..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-zinc-700/40 text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500/70 text-xs font-mono resize-y"
+                />
+                <p className="text-[10px] text-zinc-600">
+                  Extension{" "}
+                  <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer" className="text-cyan-500/60 hover:text-cyan-400 underline">
+                    Get cookies.txt
+                  </a>{" "}
+                  pour Chrome — exportez les cookies, ouvrez le fichier .txt et copiez-collez le contenu ici.
+                </p>
               </div>
-              {useCookies && (
-                <select
-                  value={cookieBrowser}
-                  onChange={(e) => setCookieBrowser(e.target.value)}
-                  className="text-xs px-2 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 focus:outline-none cursor-pointer"
-                >
-                  {BROWSERS.map((b) => (
-                    <option key={b.key} value={b.key}>
-                      {b.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <span className="text-[11px] text-amber-500/50">
-                {currentPlatform.label} nécessite une connexion navigateur (local uniquement)
-              </span>
-            </div>
-          )}
+            )}
+          </div>
         </form>
 
         {/* Error */}
@@ -609,12 +534,7 @@ export default function Home() {
             <div className="aspect-video bg-zinc-800/30 relative">
               {info.thumbnail ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={info.thumbnail}
-                  alt={info.title}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
+                <img src={info.thumbnail} alt={info.title} className="w-full h-full object-cover" loading="lazy" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-zinc-700">
                   <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -687,9 +607,7 @@ export default function Home() {
                       >
                         <div className="text-left min-w-0">
                           <span className="font-semibold text-sm block">{f.quality}</span>
-                          {f.size !== "Inconnu" && (
-                            <span className="text-[10px] text-zinc-500">{f.size}</span>
-                          )}
+                          {f.size !== "Inconnu" && <span className="text-[10px] text-zinc-500">{f.size}</span>}
                         </div>
                         <span className="text-zinc-500 group-hover:text-white transition-colors shrink-0">
                           {downloading === f.quality ? (
@@ -708,9 +626,7 @@ export default function Home() {
               )}
 
               {videoFormats.length === 0 && audioFormats.length === 0 && (
-                <p className="text-center text-zinc-500 py-4 text-sm">
-                  Aucun format trouvé pour cette vidéo.
-                </p>
+                <p className="text-center text-zinc-500 py-4 text-sm">Aucun format trouvé pour cette vidéo.</p>
               )}
             </div>
           </div>
@@ -719,9 +635,7 @@ export default function Home() {
         {/* Empty state */}
         {!info && !loading && !error && (
           <div className="text-center py-20">
-            <div
-              className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${currentPlatform.gradient} mx-auto mb-6 flex items-center justify-center text-white text-3xl shadow-2xl opacity-90`}
-            >
+            <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${currentPlatform.gradient} mx-auto mb-6 flex items-center justify-center text-white text-3xl shadow-2xl opacity-90`}>
               {currentPlatform.icon}
             </div>
             <h2 className="text-xl font-semibold mb-2">Prêt à télécharger</h2>

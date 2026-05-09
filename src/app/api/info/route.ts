@@ -8,118 +8,130 @@ function formatSize(bytes: number | undefined): string {
   return `${mb.toFixed(1)} MB`;
 }
 
+async function getInfo(url: string, cookies?: string) {
+  const info = await ytDlpJson(url, cookies);
+  const formats = (info.formats as Array<Record<string, unknown>>) || [];
+  const duration = (info.duration as number) || 0;
+
+  let bestAudioSize = 0;
+  for (const f of formats) {
+    const vcodec = f.vcodec as string;
+    const acodec = f.acodec as string;
+    if (vcodec === "none" && acodec && acodec !== "none") {
+      const size = f.filesize_approx as number || f.filesize as number || 0;
+      if (size > bestAudioSize) bestAudioSize = size;
+    }
+  }
+
+  if (bestAudioSize === 0) {
+    for (const f of formats) {
+      const vcodec = f.vcodec as string;
+      const acodec = f.acodec as string;
+      const tbr = f.tbr as number;
+      if (vcodec === "none" && acodec && acodec !== "none") {
+        const est = tbr && duration ? tbr * duration * 125 : 0;
+        if (est > bestAudioSize) bestAudioSize = est;
+      }
+    }
+  }
+
+  const heightData = new Map<number, { label: string; videoSize: number }>();
+  for (const f of formats) {
+    const vcodec = f.vcodec as string;
+    const height = f.height as number;
+    const tbr = f.tbr as number;
+    if (vcodec && vcodec !== "none" && height && height > 0) {
+      const existing = heightData.get(height);
+      const size = (f.filesize_approx as number) || (f.filesize as number) || (tbr && duration ? tbr * duration * 125 : 0);
+      if (!existing || size > existing.videoSize) {
+        heightData.set(height, {
+          label: (f.format_note || f.resolution || `${height}p`) as string,
+          videoSize: size,
+        });
+      }
+    }
+  }
+
+  const sortedHeights = Array.from(heightData.entries())
+    .sort((a, b) => b[0] - a[0])
+    .map(([height, data]) => {
+      const totalSize = data.videoSize + bestAudioSize;
+      return {
+        id: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`,
+        quality: data.label,
+        ext: "mp4",
+        size: totalSize > 0 ? formatSize(totalSize) : "Taille estimée",
+        estimatedBytes: totalSize > 0 ? totalSize : 0,
+        isAudio: false,
+      };
+    });
+
+  const audioFormats = formats
+    .filter((f) => {
+      const vcodec = f.vcodec as string;
+      const acodec = f.acodec as string;
+      return vcodec === "none" && acodec && acodec !== "none";
+    })
+    .map((f) => {
+      const size = f.filesize_approx as number || f.filesize as number || 0;
+      return {
+        id: f.format_id as string,
+        quality: f.abr ? `${f.abr}kbps audio` : f.asr ? `${f.asr}Hz audio` : "audio",
+        ext: f.ext as string,
+        size: formatSize(f.filesize_approx as number | undefined),
+        estimatedBytes: size,
+        isAudio: true,
+      };
+    });
+
+  const seenAudio = new Set<string>();
+  const uniqueAudio = audioFormats.filter((f) => {
+    const key = `${f.quality}_${f.ext}`;
+    if (seenAudio.has(key)) return false;
+    seenAudio.add(key);
+    return true;
+  });
+
+  return {
+    title: (info.title || info.fulltitle || "Sans titre") as string,
+    author: (info.uploader || info.channel || info.creator || "Inconnu") as string,
+    duration: info.duration_string || `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`,
+    thumbnail: (info.thumbnail as string) || "",
+    formats: [...sortedHeights, ...uniqueAudio],
+  };
+}
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
-  const cookies = req.nextUrl.searchParams.get("cookies") || undefined;
-
   if (!url) {
     return NextResponse.json({ error: "URL manquante" }, { status: 400 });
   }
 
   try {
-    const info = await ytDlpJson(url, cookies);
-    const formats = (info.formats as Array<Record<string, unknown>>) || [];
-    const duration = (info.duration as number) || 0;
-
-    // Find best audio format
-    let bestAudioSize = 0;
-    for (const f of formats) {
-      const vcodec = f.vcodec as string;
-      const acodec = f.acodec as string;
-      if (vcodec === "none" && acodec && acodec !== "none") {
-        const size = f.filesize_approx as number || f.filesize as number || 0;
-        if (size > bestAudioSize) bestAudioSize = size;
-      }
-    }
-
-    if (bestAudioSize === 0) {
-      for (const f of formats) {
-        const vcodec = f.vcodec as string;
-        const acodec = f.acodec as string;
-        const tbr = f.tbr as number;
-        if (vcodec === "none" && acodec && acodec !== "none") {
-          const est = tbr && duration ? tbr * duration * 125 : 0;
-          if (est > bestAudioSize) bestAudioSize = est;
-        }
-      }
-    }
-
-    // Collect unique video heights with best format size
-    const heightData = new Map<number, { label: string; videoSize: number }>();
-    for (const f of formats) {
-      const vcodec = f.vcodec as string;
-      const height = f.height as number;
-      const tbr = f.tbr as number;
-      if (vcodec && vcodec !== "none" && height && height > 0) {
-        const existing = heightData.get(height);
-        const size = (f.filesize_approx as number) || (f.filesize as number) || (tbr && duration ? tbr * duration * 125 : 0);
-        if (!existing || size > existing.videoSize) {
-          heightData.set(height, {
-            label: (f.format_note || f.resolution || `${height}p`) as string,
-            videoSize: size,
-          });
-        }
-      }
-    }
-
-    const sortedHeights = Array.from(heightData.entries())
-      .sort((a, b) => b[0] - a[0])
-      .map(([height, data]) => {
-        const totalSize = data.videoSize + bestAudioSize;
-        return {
-          id: `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`,
-          quality: data.label,
-          ext: "mp4",
-          size: totalSize > 0 ? formatSize(totalSize) : "Taille estimée",
-          estimatedBytes: totalSize > 0 ? totalSize : 0,
-          isAudio: false,
-        };
-      });
-
-    const audioFormats = formats
-      .filter((f) => {
-        const vcodec = f.vcodec as string;
-        const acodec = f.acodec as string;
-        return vcodec === "none" && acodec && acodec !== "none";
-      })
-      .map((f) => {
-        const size = f.filesize_approx as number || f.filesize as number || 0;
-        return {
-          id: f.format_id as string,
-          quality: f.abr ? `${f.abr}kbps audio` : f.asr ? `${f.asr}Hz audio` : "audio",
-          ext: f.ext as string,
-          size: formatSize(f.filesize_approx as number | undefined),
-          estimatedBytes: size,
-          isAudio: true,
-        };
-      });
-
-    const seenAudio = new Set<string>();
-    const uniqueAudio = audioFormats.filter((f) => {
-      const key = `${f.quality}_${f.ext}`;
-      if (seenAudio.has(key)) return false;
-      seenAudio.add(key);
-      return true;
-    });
-
-    return NextResponse.json({
-      title: (info.title || info.fulltitle || "Sans titre") as string,
-      author: (info.uploader || info.channel || info.creator || "Inconnu") as string,
-      duration: info.duration_string || `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, "0")}`,
-      thumbnail: (info.thumbnail as string) || "",
-      webpage_url: info.webpage_url as string || "",
-      extractor: info.extractor as string || "",
-      formats: [...sortedHeights, ...uniqueAudio],
-    });
+    const data = await getInfo(url);
+    return NextResponse.json(data);
   } catch (err) {
     console.error("yt-dlp error:", err);
     const message = err instanceof Error ? err.message : "Impossible de récupérer les informations";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
-    let hint: string | undefined;
-    if (message.includes("Cookie") || message.includes("logged-in") || message.includes("login")) {
-      hint = "Cette plateforme nécessite une authentification. Activez les cookies navigateur.";
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const url = body.url as string;
+    const cookies = body.cookies as string | undefined;
+
+    if (!url) {
+      return NextResponse.json({ error: "URL manquante" }, { status: 400 });
     }
 
-    return NextResponse.json({ error: message, hint }, { status: 500 });
+    const data = await getInfo(url, cookies);
+    return NextResponse.json(data);
+  } catch (err) {
+    console.error("yt-dlp error:", err);
+    const message = err instanceof Error ? err.message : "Impossible de récupérer les informations";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
