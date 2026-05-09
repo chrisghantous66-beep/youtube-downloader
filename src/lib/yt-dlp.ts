@@ -68,9 +68,17 @@ function buildArgs(url: string, cookiesContent?: string): string[] {
   if (cookiesContent && cookiesContent.trim().length > 0) {
     const cookieHeader = cookiesToHeader(cookiesContent);
     if (cookieHeader) {
-      // Use --add-header to inject cookies directly (no file needed)
-      // This works on Vercel where --cookies with a file has issues
+      // Write cookies to temp file AND add header (belt and suspenders)
+      const tmpDir = isVercel ? "/tmp" : require("os").tmpdir();
+      const cookieFile = path.join(tmpDir, `.cookies-${Date.now()}.txt`);
+      require("fs").writeFileSync(cookieFile, cookiesContent.trim(), "utf-8");
+      args.push("--cookies", cookieFile);
       args.push("--add-header", `Cookie: ${cookieHeader}`);
+      // Force web client with cookies
+      const isYouTube = url.includes("youtube.com") || url.includes("youtu.be");
+      if (isYouTube) {
+        args.push("--extractor-args", "youtube:player_client=web");
+      }
     }
   } else {
     // Without cookies on Vercel: use tv_embed client to avoid bot detection.
@@ -121,8 +129,8 @@ export async function ytDlpJson(
 
     if (isVercel) {
       throw new Error(
-        "Les cookies fournis n'ont pas permis de contourner le blocage YouTube. " +
-        "Assurez-vous d'être connecté à youtube.com AVANT d'exporter les cookies avec l'extension."
+        "Les cookies n'ont pas fonctionné. Vérifiez que le fichier exporté contient des lignes .youtube.com " +
+        "(ouvrez le .txt pour vérifier). Si le problème persiste, utilisez l'app en local: npm run dev"
       );
     }
 
