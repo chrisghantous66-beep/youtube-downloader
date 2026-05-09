@@ -24,11 +24,13 @@ async function ensureBinary(): Promise<string> {
     return local;
   }
 
-  // Download yt-dlp Linux binary on Vercel
+  // Download yt-dlp binary
+  // On Linux: yt-dlp_linux is the standalone binary (Python bundled, no system deps)
+  // On Windows: yt-dlp.exe is the standalone .exe
   const url =
     process.platform === "win32"
       ? "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe"
-      : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+      : "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux";
 
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to download yt-dlp: ${res.status}`);
