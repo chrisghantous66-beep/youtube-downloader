@@ -19,7 +19,7 @@ type VideoInfo = {
   formats: Format[];
 };
 
-type Platform = "youtube" | "instagram" | "facebook";
+type Platform = "instagram" | "facebook";
 
 type DownloadProgress = {
   bytesDownloaded: number;
@@ -33,36 +33,30 @@ const PLATFORMS: {
   label: string;
   icon: string;
   placeholder: string;
-  gradient: string;
-  glowColor: string;
+  neonColor: string;
+  neonDim: string;
+  bgGlow: string;
   urlPattern: RegExp;
 }[] = [
   {
-    key: "youtube",
-    label: "YouTube",
-    icon: "▶",
-    placeholder: "https://www.youtube.com/watch?v=...",
-    gradient: "from-red-600 to-rose-600",
-    glowColor: "rgba(239,68,68,0.6)",
-    urlPattern: /^(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)/,
-  },
-  {
     key: "instagram",
     label: "Instagram",
-    icon: "📷",
+    icon: "◇",
     placeholder: "https://www.instagram.com/reel/...",
-    gradient: "from-pink-500 to-purple-500",
-    glowColor: "rgba(236,72,153,0.6)",
+    neonColor: "#ff2d95",
+    neonDim: "rgba(255,45,149,0.3)",
+    bgGlow: "rgba(255,45,149,0.08)",
     urlPattern: /^(https?:\/\/)?(www\.)?instagram\.com\/(reel\/|p\/|tv\/|stories\/)/,
   },
   {
     key: "facebook",
     label: "Facebook",
-    icon: "📘",
+    icon: "◈",
     placeholder: "https://www.facebook.com/watch/?v=...",
-    gradient: "from-blue-600 to-sky-500",
-    glowColor: "rgba(37,99,235,0.6)",
-    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/|video\/|plugins\/video|photo\/\?fbid=)|fb\.watch\/)/,
+    neonColor: "#00d4ff",
+    neonDim: "rgba(0,212,255,0.3)",
+    bgGlow: "rgba(0,212,255,0.08)",
+    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/|video\/|plugins\/video)|fb\.watch\/)/,
   },
 ];
 
@@ -70,11 +64,10 @@ function validateUrl(url: string, platform: Platform): string | null {
   const cfg = PLATFORMS.find((p) => p.key === platform)!;
   if (!cfg.urlPattern.test(url.trim())) {
     const labels: Record<Platform, string> = {
-      youtube: "YouTube (youtube.com, youtu.be)",
       instagram: "Instagram (instagram.com/reel/, /p/, /tv/)",
       facebook: "Facebook (facebook.com, fb.watch)",
     };
-    return `Ce lien ne correspond pas à ${labels[platform]}. Utilisez l'onglet approprié.`;
+    return `Lien invalide pour ${labels[platform]}`;
   }
   return null;
 }
@@ -93,148 +86,114 @@ function formatSpeed(bytesPerSec: number): string {
 function formatTime(ms: number): string {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
-  const sec = s % 60;
-  if (m > 0) return `${m}m ${sec}s`;
-  return `${sec}s`;
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`;
 }
 
-function DownloadIcon() {
+// ─── Neon corner decoration ───
+function Corners({ color }: { color: string }) {
   return (
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-    </svg>
+    <>
+      <div className="absolute top-0 left-0 w-5 h-5 border-t border-l rounded-tl-lg" style={{ borderColor: `${color}66` }} />
+      <div className="absolute top-0 right-0 w-5 h-5 border-t border-r rounded-tr-lg" style={{ borderColor: `${color}66` }} />
+      <div className="absolute bottom-0 left-0 w-5 h-5 border-b border-l rounded-bl-lg" style={{ borderColor: `${color}66` }} />
+      <div className="absolute bottom-0 right-0 w-5 h-5 border-b border-r rounded-br-lg" style={{ borderColor: `${color}66` }} />
+    </>
   );
 }
 
-function RetroProgressBar({
+// ─── Download progress overlay ───
+function ProgressOverlay({
   progress,
-  _formatLabel,
   glowColor,
 }: {
   progress: DownloadProgress;
-  _formatLabel: string;
   glowColor: string;
 }) {
   const elapsed = Date.now() - progress.startTime;
-
-  const percentage = progress.totalBytes > 0
+  const pct = progress.totalBytes > 0
     ? Math.min(99, Math.round((progress.bytesDownloaded / progress.totalBytes) * 100))
     : 0;
 
-  const blocks = 40;
-  const filled = Math.floor((percentage / 100) * blocks);
-
   let eta = "";
   if (progress.speed > 0 && progress.totalBytes > 0) {
-    const remaining = progress.totalBytes - progress.bytesDownloaded;
-    const etaSec = Math.ceil(remaining / progress.speed);
-    if (etaSec > 3600) eta = `~${Math.floor(etaSec / 3600)}h`;
-    else if (etaSec > 60) eta = `~${Math.floor(etaSec / 60)}m`;
-    else eta = `~${etaSec}s`;
+    const s = Math.ceil((progress.totalBytes - progress.bytesDownloaded) / progress.speed);
+    eta = s > 3600 ? `~${Math.floor(s / 3600)}h` : s > 60 ? `~${Math.floor(s / 60)}m` : `~${s}s`;
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/90 backdrop-blur-sm">
-      <div className="w-full max-w-lg mx-4">
-        <div
-          className="relative rounded-2xl border-2 p-6"
-          style={{
-            backgroundColor: "#0a0a0f",
-            borderColor: "rgba(0,255,255,0.15)",
-            boxShadow: `0 0 40px ${glowColor.replace("0.6", "0.15")}, 0 0 80px ${glowColor.replace("0.6", "0.08")}, inset 0 0 60px rgba(0,255,255,0.02)`,
-          }}
-        >
-          <div
-            className="absolute inset-0 rounded-2xl pointer-events-none opacity-[0.03]"
-            style={{
-              backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,255,0.5) 2px, rgba(0,255,255,0.5) 3px)",
-            }}
-          />
-          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-500/40 rounded-tl-lg" />
-          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-500/40 rounded-tr-lg" />
-          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-500/40 rounded-bl-lg" />
-          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-500/40 rounded-br-lg" />
+  const blocks = 36;
+  const filled = Math.floor((pct / 100) * blocks);
 
-          <div className="relative">
-            <div className="flex items-center justify-between mb-4">
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#050510]/95 backdrop-blur-sm">
+      {/* Background grid */}
+      <div className="absolute inset-0 opacity-[0.015] pointer-events-none"
+        style={{
+          backgroundImage: "linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
+        }}
+      />
+
+      <div className="w-full max-w-md mx-4 relative">
+        <div className="relative rounded-2xl p-5" style={{
+          background: "linear-gradient(135deg, rgba(10,10,30,0.98), rgba(5,5,20,0.98))",
+          border: `1px solid ${glowColor}33`,
+          boxShadow: `0 0 60px ${glowColor}15, 0 0 120px ${glowColor}08, inset 0 0 40px ${glowColor}03`,
+        }}>
+          <Corners color={glowColor} />
+
+          {/* Scanlines */}
+          <div className="absolute inset-0 rounded-2xl pointer-events-none opacity-[0.02]"
+            style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)" }} />
+
+          <div className="relative space-y-4">
+            {/* Title */}
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_#00ffff]" />
-                <span className="text-cyan-400/80 text-xs tracking-[0.2em] uppercase font-mono">
-                  Téléchargement
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: glowColor, boxShadow: `0 0 10px ${glowColor}` }} />
+                <span className="text-xs tracking-[0.25em] uppercase font-mono" style={{ color: glowColor }}>
+                  DOWNLOADING
                 </span>
               </div>
-              <span className="text-cyan-500/50 text-[10px] font-mono tracking-wider">
-                {percentage}%
+              <span className="text-xs font-mono font-bold" style={{ color: glowColor }}>
+                {pct}%
               </span>
             </div>
 
-            <div
-              className="h-8 rounded-lg relative overflow-hidden mb-3"
-              style={{
-                backgroundColor: "rgba(0,0,0,0.5)",
-                border: "1px solid rgba(0,255,255,0.1)",
-                boxShadow: "inset 0 0 20px rgba(0,0,0,0.5)",
-              }}
-            >
-              <div
-                className="absolute inset-y-0 left-0 transition-all duration-200 rounded-lg"
-                style={{
-                  width: `${percentage}%`,
-                  background: `linear-gradient(90deg, rgba(0,255,255,0.15), rgba(0,255,255,0.35))`,
-                  boxShadow: `inset 0 0 15px rgba(0,255,255,0.1)`,
-                }}
-              />
+            {/* Bar */}
+            <div className="h-7 rounded-lg relative overflow-hidden"
+              style={{ background: "rgba(0,0,0,0.6)", border: `1px solid ${glowColor}18`, boxShadow: `inset 0 0 15px rgba(0,0,0,0.8)` }}>
+              <div className="absolute inset-y-0 left-0 transition-all duration-150 rounded-lg"
+                style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${glowColor}15, ${glowColor}35)`, boxShadow: `inset 0 0 12px ${glowColor}15` }} />
               <div className="absolute inset-0 flex gap-[2px] p-[2px]">
                 {Array.from({ length: blocks }).map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-sm transition-all duration-200"
+                  <div key={i} className="flex-1 rounded-sm transition-all duration-150"
                     style={{
-                      backgroundColor: i < filled
-                        ? `rgba(0,255,255,${0.3 + (i / blocks) * 0.5})`
-                        : "rgba(255,255,255,0.03)",
-                      boxShadow: i < filled
-                        ? `0 0 ${i === filled - 1 ? "10px" : "3px"} ${glowColor.replace("0.6", i === filled - 1 ? "0.9" : "0.3")}`
-                        : "none",
-                    }}
-                  />
+                      background: i < filled ? `${glowColor}${i === filled - 1 ? "cc" : "66"}` : "rgba(255,255,255,0.03)",
+                      boxShadow: i < filled ? `0 0 ${i === filled - 1 ? "14px" : "3px"} ${glowColor}` : "none",
+                    }} />
                 ))}
               </div>
-              {percentage > 0 && (
-                <div
-                  className="absolute top-0 bottom-0 w-[2px]"
-                  style={{
-                    left: `${percentage}%`,
-                    backgroundColor: "rgba(0,255,255,0.9)",
-                    boxShadow: `0 0 20px ${glowColor}, 0 0 40px rgba(0,255,255,0.8)`,
-                  }}
-                />
-              )}
             </div>
 
-            <div className="grid grid-cols-4 gap-3">
-              <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Progrès</div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">{percentage}%</div>
-              </div>
-              <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Téléchargé</div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">{formatBytes(progress.bytesDownloaded)}</div>
-              </div>
-              <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">Vitesse</div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">{formatSpeed(progress.speed)}</div>
-              </div>
-              <div>
-                <div className="text-[9px] text-cyan-500/50 tracking-widest uppercase font-mono mb-0.5">{eta ? "ETA" : "Temps"}</div>
-                <div className="text-sm font-mono text-cyan-300 font-semibold">{eta || formatTime(elapsed)}</div>
-              </div>
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3 text-center">
+              {[
+                { label: "DOWNLOADED", value: formatBytes(progress.bytesDownloaded) },
+                { label: "SPEED", value: formatSpeed(progress.speed) },
+                { label: eta ? "ETA" : "ELAPSED", value: eta || formatTime(elapsed) },
+              ].map((s) => (
+                <div key={s.label}>
+                  <div className="text-[8px] tracking-[0.15em] uppercase font-mono mb-1" style={{ color: `${glowColor}55` }}>{s.label}</div>
+                  <div className="text-xs font-mono font-semibold" style={{ color: glowColor }}>{s.value}</div>
+                </div>
+              ))}
             </div>
 
-            <div className="mt-4 flex items-center gap-2">
-              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
-              <span className="text-[9px] font-mono text-cyan-500/40 tracking-widest animate-pulse">● EN COURS</span>
-              <div className="flex-1 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
+            {/* Bottom line */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${glowColor}25, transparent)` }} />
+              <span className="text-[9px] font-mono tracking-[0.2em] animate-pulse" style={{ color: `${glowColor}55` }}>● ACTIVE</span>
+              <div className="flex-1 h-px" style={{ background: `linear-gradient(90deg, transparent, ${glowColor}25, transparent)` }} />
             </div>
           </div>
         </div>
@@ -243,9 +202,10 @@ function RetroProgressBar({
   );
 }
 
+// ─── Main app ───
 export default function Home() {
   const [url, setUrl] = useState("");
-  const [platform, setPlatform] = useState<Platform>("youtube");
+  const [platform, setPlatform] = useState<Platform>("instagram");
   const [info, setInfo] = useState<VideoInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState<string | null>(null);
@@ -257,16 +217,14 @@ export default function Home() {
     return "";
   });
   const [showCookies, setShowCookies] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const platformCfg = PLATFORMS.find((p) => p.key === platform)!;
 
   function updateCookies(value: string) {
     setCookiesText(value);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("vg_cookies", value);
-    }
+    if (typeof window !== "undefined") localStorage.setItem("vg_cookies", value);
   }
-  const abortRef = useRef<AbortController | null>(null);
-
-  const currentPlatform = PLATFORMS.find((p) => p.key === platform)!;
 
   const handleFetchInfo = useCallback(
     async (e: React.FormEvent) => {
@@ -275,15 +233,10 @@ export default function Home() {
       setHint("");
       setInfo(null);
 
-      const validationError = validateUrl(url, currentPlatform.key);
-      if (validationError) {
-        setError(validationError);
-        setLoading(false);
-        return;
-      }
+      const ve = validateUrl(url, platformCfg.key);
+      if (ve) { setError(ve); return; }
 
       setLoading(true);
-
       try {
         let res: Response;
         if (cookiesText.trim()) {
@@ -296,24 +249,20 @@ export default function Home() {
           res = await fetch(`/api/info?url=${encodeURIComponent(url.trim())}`);
         }
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Une erreur est survenue");
+        if (!res.ok) throw new Error(data.error || "Erreur");
         setInfo(data);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "Une erreur est survenue";
+        const msg = err instanceof Error ? err.message : "Erreur";
         setError(msg);
-        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque") || msg.includes("connecté à youtube")) {
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque")) {
           setShowCookies(true);
-          if (msg.includes("connecté à youtube")) {
-            setHint("Vos cookies semblent invalides. Connectez-vous à youtube.com dans Chrome, PUIS exportez avec l'extension Get cookies.txt.");
-          } else {
-            setHint("YouTube bloque les IPs datacenter. Ajoutez vos cookies YouTube ci-dessous (1 seule fois, ils sont sauvegardés).");
-          }
+          setHint("Ajoutez vos cookies dans la section ci-dessous.");
         }
       } finally {
         setLoading(false);
       }
     },
-    [url, cookiesText, currentPlatform]
+    [url, cookiesText, platformCfg.key]
   );
 
   async function handleDownload(format: Format) {
@@ -324,7 +273,6 @@ export default function Home() {
     const totalBytes = format.estimatedBytes || 0;
     const startTime = Date.now();
     setDownloadProgress({ bytesDownloaded: 0, speed: 0, startTime, totalBytes });
-
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -346,11 +294,11 @@ export default function Home() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || "Échec du téléchargement");
+        throw new Error(data.error || "Échec");
       }
 
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("Impossible de lire le flux de données");
+      if (!reader) throw new Error("Flux illisible");
 
       const chunks: any[] = [];
       let downloaded = 0;
@@ -360,40 +308,33 @@ export default function Home() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
         chunks.push(value);
         downloaded += value.length;
-
         const now = Date.now();
         if (now - lastTick >= 100) {
-          const deltaTime = (now - lastTick) / 1000;
-          const deltaBytes = downloaded - lastBytes;
-          const speed = deltaTime > 0 ? deltaBytes / deltaTime : 0;
-          setDownloadProgress({ bytesDownloaded: downloaded, speed, startTime, totalBytes });
+          const dt = (now - lastTick) / 1000;
+          const db = downloaded - lastBytes;
+          setDownloadProgress({ bytesDownloaded: downloaded, speed: dt > 0 ? db / dt : 0, startTime, totalBytes });
           lastTick = now;
           lastBytes = downloaded;
         }
       }
 
-      const totalTime = (Date.now() - startTime) / 1000;
-      const avgSpeed = totalTime > 0 ? downloaded / totalTime : 0;
-      setDownloadProgress({ bytesDownloaded: downloaded, speed: avgSpeed, startTime, totalBytes: downloaded });
-      await new Promise((r) => setTimeout(r, 400));
+      setDownloadProgress({ bytesDownloaded: downloaded, speed: 0, startTime, totalBytes: downloaded });
+      await new Promise((r) => setTimeout(r, 300));
 
       const blob = new Blob(chunks as BlobPart[]);
-      const blobUrl = URL.createObjectURL(blob);
+      const u = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = blobUrl;
-      const ext = format.ext || (format.isAudio ? "mp3" : "mp4");
-      const safe = (info?.title || "video").replace(/[^a-z0-9]/gi, "_").substring(0, 50);
-      a.download = `${safe}.${ext}`;
+      a.href = u;
+      a.download = `${(info?.title || "video").replace(/[^a-z0-9]/gi, "_").substring(0, 40)}.${format.ext || "mp4"}`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
+      URL.revokeObjectURL(u);
     } catch (err) {
       if (!(err instanceof DOMException && err.name === "AbortError")) {
-        setError(err instanceof Error ? err.message : "Échec du téléchargement");
+        setError(err instanceof Error ? err.message : "Échec");
       }
     } finally {
       setDownloading(null);
@@ -402,253 +343,204 @@ export default function Home() {
     }
   }
 
-  function cancelDownload() {
-    abortRef.current?.abort();
-  }
-
   const videoFormats = info?.formats.filter((f) => !f.isAudio) || [];
-  const audioFormats = info?.formats.filter((f) => f.isAudio) || [];
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white selection:bg-white/20">
+    <main className="min-h-screen text-white selection:bg-white/20"
+      style={{ background: "linear-gradient(180deg, #080812 0%, #0a0a14 50%, #080812 100%)" }}>
+
+      {/* Global scanlines & grid */}
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.025]"
+        style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)" }} />
+      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]"
+        style={{ backgroundImage: "linear-gradient(#fff2 1px, transparent 1px), linear-gradient(90deg, #fff2 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+
+      {/* Overlay */}
       {downloadProgress && (
         <>
-          <RetroProgressBar progress={downloadProgress} _formatLabel={downloading || ""} glowColor={currentPlatform.glowColor} />
-          <button
-            onClick={cancelDownload}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] px-6 py-2 rounded-full bg-red-900/60 border border-red-500/30 text-red-300 text-xs font-mono tracking-widest uppercase hover:bg-red-800/60 transition-colors cursor-pointer backdrop-blur-sm"
-          >
-            ✕ Annuler
+          <ProgressOverlay progress={downloadProgress} glowColor={platformCfg.neonColor} />
+          <button onClick={() => abortRef.current?.abort()}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[60] px-5 py-2 rounded-full text-xs font-mono tracking-[0.2em] uppercase transition-all cursor-pointer backdrop-blur-sm"
+            style={{ background: "#ff2d3533", border: "1px solid #ff2d3544", color: "#ff6b6b" }}>
+            ✕ CANCEL
           </button>
         </>
       )}
 
-      <header className="border-b border-zinc-800/30 bg-zinc-950/70 backdrop-blur-xl sticky top-0 z-40">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${currentPlatform.gradient} flex items-center justify-center text-white font-bold shadow-lg shadow-current/20`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
+      {/* Header */}
+      <header className="relative z-30 border-b backdrop-blur-xl sticky top-0"
+        style={{ background: "rgba(8,8,18,0.85)", borderColor: `${platformCfg.neonColor}18` }}>
+        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold"
+              style={{ background: `linear-gradient(135deg, ${platformCfg.neonColor}33, ${platformCfg.neonColor}11)`, border: `1px solid ${platformCfg.neonColor}44`, boxShadow: `0 0 20px ${platformCfg.bgGlow}` }}>
+              <span className="font-mono" style={{ color: platformCfg.neonColor }}>↓</span>
             </div>
             <div>
-              <h1 className="font-bold text-base text-white leading-tight">VideoGrab</h1>
-              <p className="text-[11px] text-zinc-500 leading-tight">Downloader universel</p>
+              <h1 className="font-bold text-sm tracking-wide">VIDEOGRAB</h1>
+              <p className="text-[10px] tracking-[0.15em] uppercase font-mono" style={{ color: `${platformCfg.neonColor}88` }}>Downloader</p>
             </div>
           </div>
-          <div className="text-[11px] text-zinc-600">Qualité native</div>
+          <span className="text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: `${platformCfg.neonColor}55` }}>
+            {platformCfg.label}
+          </span>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 sm:py-10">
-        {/* Platform tabs */}
-        <div className="flex gap-1 mb-6 bg-zinc-900/40 rounded-xl p-1 border border-zinc-800/30">
+      <div className="relative z-10 max-w-2xl mx-auto px-4 py-8">
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 rounded-xl p-1"
+          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
           {PLATFORMS.map((p) => (
-            <button
-              key={p.key}
-              onClick={() => { setPlatform(p.key); setInfo(null); setError(""); setHint(""); setUrl(""); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
-                platform === p.key
-                  ? `bg-gradient-to-r ${p.gradient} text-white shadow-lg shadow-current/10`
-                  : "text-zinc-400 hover:text-white hover:bg-zinc-800/40"
-              }`}
-            >
-              <span className="text-base">{p.icon}</span>
-              <span className="hidden sm:inline">{p.label}</span>
+            <button key={p.key} onClick={() => { setPlatform(p.key); setInfo(null); setError(""); setHint(""); setUrl(""); }}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer"
+              style={platform === p.key ? {
+                background: `linear-gradient(135deg, ${p.neonColor}22, ${p.neonColor}0d)`,
+                border: `1px solid ${p.neonColor}55`,
+                color: p.neonColor,
+                boxShadow: `0 0 25px ${p.bgGlow}`,
+              } : {
+                color: "#ffffff55",
+              }}>
+              <span className="text-lg font-mono">{p.icon}</span>
+              <span className="hidden sm:inline tracking-wide text-xs">{p.label}</span>
             </button>
           ))}
         </div>
 
-        {/* URL input */}
+        {/* Form */}
         <form onSubmit={handleFetchInfo} className="mb-6 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            <div className="flex-1 relative">
-              <input
-                type="url"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                placeholder={currentPlatform.placeholder}
-                className="w-full px-4 py-3 rounded-xl bg-zinc-900/60 border border-zinc-700/40 text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500/70 transition-all duration-200 text-sm"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className={`px-5 py-3 rounded-xl bg-gradient-to-r ${currentPlatform.gradient} disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] cursor-pointer shadow-lg whitespace-nowrap flex items-center justify-center gap-2`}
-            >
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={platformCfg.placeholder}
+              className="flex-1 px-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 focus:outline-none transition-all duration-200 font-mono"
+              style={{
+                background: "rgba(255,255,255,0.03)",
+                border: `1px solid rgba(255,255,255,0.06)`,
+                boxShadow: `inset 0 0 20px rgba(0,0,0,0.3)`,
+              }}
+              required
+            />
+            <button type="submit" disabled={loading}
+              className="px-5 py-3 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 cursor-pointer tracking-wider uppercase font-mono text-xs"
+              style={{
+                background: `linear-gradient(135deg, ${platformCfg.neonColor}88, ${platformCfg.neonColor}44)`,
+                border: `1px solid ${platformCfg.neonColor}66`,
+                color: "#fff",
+                boxShadow: `0 0 30px ${platformCfg.bgGlow}`,
+              }}>
               {loading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <span className="hidden sm:inline">Analyse...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                  <span className="hidden sm:inline">Analyser</span>
-                </>
-              )}
+                  SCAN
+                </span>
+              ) : "ANALYZE"}
             </button>
           </div>
 
-          {/* Cookies section */}
-          <div>
-            <button
-              type="button"
-              onClick={() => setShowCookies(!showCookies)}
-              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
-            >
-              <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              <span>Cookies {cookiesText.trim() ? "✓ (actif)" : "(optionnel)"}</span>
-              <span className="text-zinc-600">— {cookiesText.trim() ? "activé pour toutes les plateformes" : "recommandé pour YouTube, obligatoire pour Instagram/Facebook"}</span>
-            </button>
-            {showCookies && (
-              <div className="mt-2 space-y-2">
-                <textarea
-                  value={cookiesText}
-                  onChange={(e) => updateCookies(e.target.value)}
-                  placeholder="Collez ici le contenu de votre fichier cookies.txt (format Netscape)..."
-                  rows={4}
-                  className="w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-zinc-700/40 text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500/70 text-xs font-mono resize-y"
-                />
-                <div className="space-y-1">
-                  <p className="text-[10px] text-zinc-500">
-                    <span className="text-amber-400/80 font-medium">YouTube bloqué ?</span> Installez l'extension{" "}
-                    <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer" className="text-cyan-500/60 hover:text-cyan-400 underline">
-                      Get cookies.txt
-                    </a>
-                    {" "}→ allez sur youtube.com → exportez → copiez-collez le contenu ici.
-                  </p>
-                  {cookiesText.trim() && (
-                    <p className="text-[10px] text-emerald-400/70">
-                      Cookies sauvegardés — vous n'aurez plus à les remettre.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Cookies toggle */}
+          <button type="button" onClick={() => setShowCookies(!showCookies)}
+            className="flex items-center gap-1.5 text-[10px] tracking-wider uppercase font-mono transition-colors cursor-pointer"
+            style={{ color: cookiesText.trim() ? "#22ffaa" : "#ffffff33" }}>
+            <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+            COOKIES {cookiesText.trim() ? "● ACTIVE" : ""}
+          </button>
+          {showCookies && (
+            <div className="space-y-1.5">
+              <textarea value={cookiesText} onChange={(e) => updateCookies(e.target.value)}
+                placeholder="Paste cookies.txt content here..."
+                rows={3}
+                className="w-full px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono resize-y"
+                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }} />
+              <p className="text-[9px] tracking-wider font-mono" style={{ color: "#ffffff33" }}>
+                <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer"
+                  className="underline hover:text-white/60" style={{ color: platformCfg.neonColor }}>
+                  Get cookies.txt
+                </a>
+                {" "}→ export → paste here
+              </p>
+            </div>
+          )}
         </form>
 
         {/* Error */}
         {error && (
-          <div className="p-4 rounded-xl bg-red-950/30 border border-red-800/30 text-red-300 mb-6 flex items-start gap-3">
-            <svg className="w-5 h-5 shrink-0 mt-0.5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="relative rounded-xl p-4 mb-6 flex items-start gap-3"
+            style={{ background: "rgba(255,45,53,0.08)", border: "1px solid rgba(255,45,53,0.2)" }}>
+            <Corners color="#ff2d35" />
+            <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ color: "#ff4d55" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <div>
-              <p className="text-sm">{error}</p>
-              {hint && <p className="text-xs text-amber-400/80 mt-1.5">{hint}</p>}
+              <p className="text-xs font-mono" style={{ color: "#ff6b6b" }}>{error}</p>
+              {hint && <p className="text-[10px] font-mono mt-1" style={{ color: "#ffaa44" }}>{hint}</p>}
             </div>
           </div>
         )}
 
-        {/* Video info card */}
+        {/* Video info */}
         {info && !loading && (
-          <div className="rounded-2xl bg-zinc-900/40 border border-zinc-800/30 overflow-hidden backdrop-blur-sm">
-            <div className="aspect-video bg-zinc-800/30 relative">
-              {info.thumbnail ? (
-                // eslint-disable-next-line @next/next/no-img-element
+          <div className="relative rounded-2xl overflow-hidden"
+            style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${platformCfg.neonColor}22` }}>
+            <Corners color={platformCfg.neonColor} />
+
+            {info.thumbnail && (
+              <div className="aspect-video relative" style={{ background: "#000" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={info.thumbnail} alt={info.title} className="w-full h-full object-cover" loading="lazy" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-zinc-700">
-                  <svg className="w-14 h-14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
-              {info.duration && (
-                <div className="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg text-xs font-medium text-white">
+                <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded text-[10px] font-mono tracking-wider backdrop-blur-md"
+                  style={{ background: "rgba(0,0,0,0.8)", border: `1px solid ${platformCfg.neonColor}33`, color: platformCfg.neonColor }}>
                   {info.duration}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="p-5">
-              <h2 className="text-lg font-semibold mb-1 leading-snug line-clamp-2">{info.title}</h2>
-              <p className="text-zinc-400 text-sm mb-6">{info.author}</p>
+              <h2 className="font-semibold text-sm leading-snug line-clamp-2 mb-1 tracking-wide">{info.title}</h2>
+              <p className="text-[11px] font-mono tracking-wider mb-5" style={{ color: "#ffffff44" }}>{info.author}</p>
 
               {videoFormats.length > 0 && (
-                <div className="mb-5">
-                  <h3 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                    Qualité vidéo ({videoFormats.length})
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {videoFormats.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => handleDownload(f)}
-                        disabled={downloading !== null}
-                        className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-xl bg-zinc-800/40 hover:bg-zinc-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer group border border-zinc-700/20 hover:border-zinc-600/40"
-                      >
-                        <div className="text-left min-w-0">
-                          <span className="font-semibold text-sm block">{f.quality}</span>
-                          <span className="text-[10px] text-zinc-500">{f.size}</span>
-                        </div>
-                        <span className="text-zinc-500 group-hover:text-white transition-colors shrink-0">
-                          {downloading === f.quality ? (
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                          ) : (
-                            <DownloadIcon />
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {audioFormats.length > 0 && (
                 <div>
-                  <h3 className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                    </svg>
-                    Audio seul ({audioFormats.length})
+                  <h3 className="text-[9px] tracking-[0.2em] uppercase font-mono mb-3 flex items-center gap-2" style={{ color: "#ffffff33" }}>
+                    <span className="w-1 h-1 rounded-full" style={{ backgroundColor: platformCfg.neonColor }} />
+                    QUALITY ({videoFormats.length})
                   </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {audioFormats.map((f) => (
-                      <button
-                        key={f.id}
-                        onClick={() => handleDownload(f)}
-                        disabled={downloading !== null}
-                        className="flex items-center justify-between gap-2 px-3.5 py-3 rounded-xl bg-zinc-800/40 hover:bg-zinc-700/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 cursor-pointer group border border-zinc-700/20 hover:border-zinc-600/40"
-                      >
-                        <div className="text-left min-w-0">
-                          <span className="font-semibold text-sm block">{f.quality}</span>
-                          {f.size !== "Inconnu" && <span className="text-[10px] text-zinc-500">{f.size}</span>}
-                        </div>
-                        <span className="text-zinc-500 group-hover:text-white transition-colors shrink-0">
-                          {downloading === f.quality ? (
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                          ) : (
-                            <DownloadIcon />
-                          )}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => handleDownload(videoFormats[0])}
+                    disabled={downloading !== null}
+                    className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl font-mono transition-all duration-200 cursor-pointer disabled:opacity-40"
+                    style={{
+                      background: `linear-gradient(135deg, ${platformCfg.neonColor}22, ${platformCfg.neonColor}0d)`,
+                      border: `1px solid ${platformCfg.neonColor}44`,
+                      boxShadow: `0 0 30px ${platformCfg.bgGlow}`,
+                      color: platformCfg.neonColor,
+                    }}>
+                    <div className="text-left">
+                      <span className="text-sm font-semibold tracking-wide block">{videoFormats[0].quality}</span>
+                      <span className="text-[10px] opacity-60">{videoFormats[0].size}</span>
+                    </div>
+                    <span className="text-lg">
+                      {downloading === videoFormats[0].quality ? (
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                      )}
+                    </span>
+                  </button>
                 </div>
-              )}
-
-              {videoFormats.length === 0 && audioFormats.length === 0 && (
-                <p className="text-center text-zinc-500 py-4 text-sm">Aucun format trouvé pour cette vidéo.</p>
               )}
             </div>
           </div>
@@ -656,21 +548,23 @@ export default function Home() {
 
         {/* Empty state */}
         {!info && !loading && !error && (
-          <div className="text-center py-20">
-            <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${currentPlatform.gradient} mx-auto mb-6 flex items-center justify-center text-white text-3xl shadow-2xl opacity-90`}>
-              {currentPlatform.icon}
+          <div className="text-center py-24 relative">
+            <div className="w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center text-3xl"
+              style={{ background: `linear-gradient(135deg, ${platformCfg.neonColor}22, ${platformCfg.neonColor}08)`, border: `1px solid ${platformCfg.neonColor}33`, boxShadow: `0 0 60px ${platformCfg.bgGlow}` }}>
+              <span className="font-mono" style={{ color: platformCfg.neonColor }}>{platformCfg.icon}</span>
             </div>
-            <h2 className="text-xl font-semibold mb-2">Prêt à télécharger</h2>
-            <p className="text-zinc-500 text-sm max-w-sm mx-auto leading-relaxed">
-              Collez un lien {currentPlatform.label} ci-dessus pour analyser et télécharger la vidéo en qualité native.
+            <h2 className="text-base font-semibold mb-2 tracking-wide">READY</h2>
+            <p className="text-xs tracking-wider font-mono max-w-xs mx-auto" style={{ color: "#ffffff33" }}>
+              Paste a {platformCfg.label} link above to download
             </p>
           </div>
         )}
       </div>
 
-      <footer className="border-t border-zinc-800/20 mt-12">
-        <div className="max-w-3xl mx-auto px-4 py-5 text-center text-[11px] text-zinc-600">
-          Propulsé par yt-dlp &middot; Téléchargements en qualité maximale
+      {/* Footer */}
+      <footer className="relative z-10 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+        <div className="max-w-2xl mx-auto px-4 py-4 text-center text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: "#ffffff18" }}>
+          Powered by yt-dlp · Native quality
         </div>
       </footer>
     </main>

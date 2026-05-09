@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "VideoGrab - Downloader YouTube, Instagram & Facebook",
-  description: "Téléchargez des vidéos YouTube, Instagram et Facebook en qualité native",
+  title: "VideoGrab - Instagram & Facebook Downloader",
+  description: "Téléchargez des vidéos Instagram et Facebook en qualité native",
 };
 
 export default function RootLayout({
