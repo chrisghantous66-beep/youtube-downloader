@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { spawn } from "child_process";
 import path from "path";
-import { mkdtempSync, createReadStream, unlinkSync, rmdirSync, existsSync, readdirSync, statSync } from "fs";
+import { mkdtempSync, createReadStream, unlinkSync, rmSync, existsSync, readdirSync, statSync } from "fs";
 import { Readable } from "stream";
 
 const YT_DLP = path.join(process.cwd(), "yt-dlp.exe");
@@ -37,7 +37,7 @@ function ytDlpDownload(url: string, formatId: string, cookies?: string): Promise
 
     proc.on("close", (code) => {
       if (code !== 0) {
-        try { rmdirSync(tmpDir, { recursive: true }); } catch {}
+        try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
         reject(new Error(stderr.trim().split("\n").pop() || `yt-dlp exited with code ${code}`));
         return;
       }
@@ -47,14 +47,14 @@ function ytDlpDownload(url: string, formatId: string, cookies?: string): Promise
         const foundFile = path.join(tmpDir, files.find((f: string) => f.endsWith(".mp4") || f.endsWith(".webm") || f.endsWith(".mkv")) || files[0] || "");
 
         if (!foundFile || !existsSync(foundFile)) {
-          rmdirSync(tmpDir, { recursive: true });
+          rmSync(tmpDir, { recursive: true, force: true });
           reject(new Error("Fichier téléchargé introuvable"));
           return;
         }
 
         resolve({ filePath: foundFile, tmpDir });
       } catch (err) {
-        try { rmdirSync(tmpDir, { recursive: true }); } catch {}
+        try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
         reject(err instanceof Error ? err : new Error("Erreur inconnue"));
       }
     });
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     function cleanup() {
       try {
         unlinkSync(filePath);
-        rmdirSync(tmpDir, { recursive: true });
+        rmSync(tmpDir, { recursive: true, force: true });
       } catch {}
     }
 
