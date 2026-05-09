@@ -35,9 +35,13 @@ async function ensureYtDlp(): Promise<string> {
 }
 
 function writeCookiesFile(cookiesContent: string): string {
+  // Filter to only keep YouTube-related cookies or keep all
+  const clean = cookiesContent.trim();
+  if (clean.length === 0) return "";
+
   const tmpDir = isVercel ? "/tmp" : require("os").tmpdir();
   const cookieFile = path.join(tmpDir, `.cookies-${Date.now()}.txt`);
-  writeFileSync(cookieFile, cookiesContent, "utf-8");
+  writeFileSync(cookieFile, clean, "utf-8");
   return cookieFile;
 }
 
@@ -60,36 +64,75 @@ function buildArgs(url: string, cookiesContent?: string): string[] {
   return args;
 }
 
+function runYtDlp(bin: string, args: string[]): Promise<{ stdout: string; stderr: string; code: number }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(bin, args);
+    let stdout = "";
+    let stderr = "";
+
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => { resolve({ stdout, stderr, code: code || 0 }); });
+    proc.on("error", reject);
+  });
+}
+
 export async function ytDlpJson(
   url: string,
   cookiesContent?: string
 ): Promise<Record<string, unknown>> {
   const bin = await ensureYtDlp();
 
-  return new Promise((resolve, reject) => {
+  // Try with cookies first
+  if (cookiesContent && cookiesContent.trim().length > 0) {
     const args = ["--dump-json", ...buildArgs(url, cookiesContent)];
-    const proc = spawn(bin, args);
+    const result = await runYtDlp(bin, args);
 
-    let stdout = "";
-    let stderr = "";
+    if (result.code === 0) {
+      try { return JSON.parse(result.stdout.trim()); }
+      catch { /* fall through */ }
+    }
 
-    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
-    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        const err = stderr.trim();
-        if (err.includes("Sign in to confirm") || err.includes("bot")) {
-          reject(new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies)."));
-          return;
+    // If cookies failed with "format not available", try without cookies
+    const err = result.stderr.trim();
+    if (err.includes("not available") || err.includes("format")) {
+      console.log("Cookies failed, retrying without cookies...");
+      const retryArgs = ["--dump-json", ...buildArgs(url, undefined)];
+      const retryResult = await runYtDlp(bin, retryArgs);
+
+      if (retryResult.code !== 0) {
+        const retryErr = retryResult.stderr.trim();
+        if (retryErr.includes("Sign in to confirm") || retryErr.includes("bot")) {
+          throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies).");
         }
-        reject(new Error(err.split("\n").pop() || `yt-dlp exited with code ${code}`));
-        return;
+        throw new Error(retryErr.split("\n").pop() || `yt-dlp exited with code ${retryResult.code}`);
       }
-      try { resolve(JSON.parse(stdout.trim())); }
-      catch { reject(new Error("Failed to parse video info")); }
-    });
-    proc.on("error", reject);
-  });
+
+      try { return JSON.parse(retryResult.stdout.trim()); }
+      catch { throw new Error("Failed to parse video info"); }
+    }
+
+    // Other cookie error
+    if (err.includes("Sign in to confirm") || err.includes("bot")) {
+      throw new Error("YouTube bloque cette requête. Vérifiez vos cookies YouTube.");
+    }
+    throw new Error(err.split("\n").pop() || "Erreur yt-dlp avec cookies");
+  }
+
+  // No cookies path
+  const args = ["--dump-json", ...buildArgs(url, undefined)];
+  const result = await runYtDlp(bin, args);
+
+  if (result.code !== 0) {
+    const err = result.stderr.trim();
+    if (err.includes("Sign in to confirm") || err.includes("bot")) {
+      throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies).");
+    }
+    throw new Error(err.split("\n").pop() || `yt-dlp exited with code ${result.code}`);
+  }
+
+  try { return JSON.parse(result.stdout.trim()); }
+  catch { throw new Error("Failed to parse video info"); }
 }
 
 export async function ytDlpDownload(
