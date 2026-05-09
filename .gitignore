@@ -4,3 +4,5 @@ node_modules/
 *.exe
 *-player-script.js
 .claude/
+test_*.mp4*
+test_*.webm*
