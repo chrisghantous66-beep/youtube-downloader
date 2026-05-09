@@ -49,7 +49,10 @@ function buildArgs(url: string, cookiesContent?: string): string[] {
   const args = ["--no-playlist", "--no-warnings"];
 
   if (cookiesContent && cookiesContent.trim().length > 0) {
-    args.push("--cookies", writeCookiesFile(cookiesContent));
+    const cookieFile = writeCookiesFile(cookiesContent);
+    if (cookieFile) {
+      args.push("--cookies", cookieFile);
+    }
   } else {
     // Without cookies on Vercel: use tv_embed client to avoid bot detection.
     // tv_embed has more formats than android, better chance of working.
@@ -93,30 +96,31 @@ export async function ytDlpJson(
       catch { /* fall through */ }
     }
 
-    // If cookies failed with "format not available", try without cookies
+    // Cookies failed — on Vercel, inform clearly. Locally, retry without.
     const err = result.stderr.trim();
-    if (err.includes("not available") || err.includes("format")) {
-      console.log("Cookies failed, retrying without cookies...");
-      const retryArgs = ["--dump-json", ...buildArgs(url, undefined)];
-      const retryResult = await runYtDlp(bin, retryArgs);
+    console.log("yt-dlp with cookies failed:", err.substring(0, 200));
 
-      if (retryResult.code !== 0) {
-        const retryErr = retryResult.stderr.trim();
-        if (retryErr.includes("Sign in to confirm") || retryErr.includes("bot")) {
-          throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube (section Cookies).");
-        }
-        throw new Error(retryErr.split("\n").pop() || `yt-dlp exited with code ${retryResult.code}`);
+    if (isVercel) {
+      throw new Error(
+        "Les cookies fournis n'ont pas permis de contourner le blocage YouTube. " +
+        "Assurez-vous d'être connecté à youtube.com AVANT d'exporter les cookies avec l'extension."
+      );
+    }
+
+    // Local: retry without cookies (works on residential IP)
+    const retryArgs = ["--dump-json", ...buildArgs(url, undefined)];
+    const retryResult = await runYtDlp(bin, retryArgs);
+
+    if (retryResult.code !== 0) {
+      const retryErr = retryResult.stderr.trim();
+      if (retryErr.includes("Sign in to confirm") || retryErr.includes("bot")) {
+        throw new Error("YouTube bloque cette requête. Ajoutez vos cookies YouTube.");
       }
-
-      try { return JSON.parse(retryResult.stdout.trim()); }
-      catch { throw new Error("Failed to parse video info"); }
+      throw new Error(retryErr.split("\n").pop() || `yt-dlp exited with code ${retryResult.code}`);
     }
 
-    // Other cookie error
-    if (err.includes("Sign in to confirm") || err.includes("bot")) {
-      throw new Error("YouTube bloque cette requête. Vérifiez vos cookies YouTube.");
-    }
-    throw new Error(err.split("\n").pop() || "Erreur yt-dlp avec cookies");
+    try { return JSON.parse(retryResult.stdout.trim()); }
+    catch { throw new Error("Failed to parse video info"); }
   }
 
   // No cookies path

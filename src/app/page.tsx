@@ -301,9 +301,13 @@ export default function Home() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Une erreur est survenue";
         setError(msg);
-        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque")) {
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque") || msg.includes("connecté à youtube")) {
           setShowCookies(true);
-          setHint("YouTube bloque les IPs datacenter. Ajoutez vos cookies YouTube ci-dessous (1 seule fois, ils sont sauvegardés).");
+          if (msg.includes("connecté à youtube")) {
+            setHint("Vos cookies semblent invalides. Connectez-vous à youtube.com dans Chrome, PUIS exportez avec l'extension Get cookies.txt.");
+          } else {
+            setHint("YouTube bloque les IPs datacenter. Ajoutez vos cookies YouTube ci-dessous (1 seule fois, ils sont sauvegardés).");
+          }
         }
       } finally {
         setLoading(false);
