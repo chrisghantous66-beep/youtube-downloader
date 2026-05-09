@@ -1,44 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
-import path from "path";
-
-const YT_DLP = path.join(process.cwd(), "yt-dlp.exe");
-
-function ytDlpJson(url: string, cookies?: string): Promise<Record<string, unknown>> {
-  return new Promise((resolve, reject) => {
-    const args = ["--dump-json", "--no-playlist", "--no-warnings"];
-
-    if (cookies) {
-      args.push("--cookies-from-browser", cookies);
-    }
-
-    args.push(url);
-
-    const proc = spawn(YT_DLP, args);
-
-    let stdout = "";
-    let stderr = "";
-
-    proc.stdout.on("data", (chunk: Buffer) => {
-      stdout += chunk.toString();
-    });
-    proc.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    proc.on("close", (code) => {
-      if (code !== 0) {
-        reject(new Error(stderr.trim() || `yt-dlp exited with code ${code}`));
-        return;
-      }
-      try {
-        resolve(JSON.parse(stdout.trim()));
-      } catch {
-        reject(new Error("Failed to parse video info"));
-      }
-    });
-    proc.on("error", reject);
-  });
-}
+import { ytDlpJson } from "@/lib/yt-dlp";
 
 function formatSize(bytes: number | undefined): string {
   if (!bytes) return "Inconnu";
@@ -60,7 +21,7 @@ export async function GET(req: NextRequest) {
     const formats = (info.formats as Array<Record<string, unknown>>) || [];
     const duration = (info.duration as number) || 0;
 
-    // Find best audio format (highest bitrate with vcodec=none)
+    // Find best audio format
     let bestAudioSize = 0;
     for (const f of formats) {
       const vcodec = f.vcodec as string;
@@ -71,7 +32,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Collect unique video heights with their best format size
+    if (bestAudioSize === 0) {
+      for (const f of formats) {
+        const vcodec = f.vcodec as string;
+        const acodec = f.acodec as string;
+        const tbr = f.tbr as number;
+        if (vcodec === "none" && acodec && acodec !== "none") {
+          const est = tbr && duration ? tbr * duration * 125 : 0;
+          if (est > bestAudioSize) bestAudioSize = est;
+        }
+      }
+    }
+
+    // Collect unique video heights with best format size
     const heightData = new Map<number, { label: string; videoSize: number }>();
     for (const f of formats) {
       const vcodec = f.vcodec as string;
@@ -89,20 +62,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // If bestAudioSize is 0, estimate from best audio tbr
-    if (bestAudioSize === 0) {
-      for (const f of formats) {
-        const vcodec = f.vcodec as string;
-        const acodec = f.acodec as string;
-        const tbr = f.tbr as number;
-        if (vcodec === "none" && acodec && acodec !== "none") {
-          const est = tbr && duration ? tbr * duration * 125 : 0;
-          if (est > bestAudioSize) bestAudioSize = est;
-        }
-      }
-    }
-
-    // Build quality options sorted by height descending
     const sortedHeights = Array.from(heightData.entries())
       .sort((a, b) => b[0] - a[0])
       .map(([height, data]) => {
@@ -117,7 +76,6 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    // Add audio-only options
     const audioFormats = formats
       .filter((f) => {
         const vcodec = f.vcodec as string;
@@ -128,11 +86,7 @@ export async function GET(req: NextRequest) {
         const size = f.filesize_approx as number || f.filesize as number || 0;
         return {
           id: f.format_id as string,
-          quality: f.abr
-            ? `${f.abr}kbps audio`
-            : f.asr
-              ? `${f.asr}Hz audio`
-              : "audio",
+          quality: f.abr ? `${f.abr}kbps audio` : f.asr ? `${f.asr}Hz audio` : "audio",
           ext: f.ext as string,
           size: formatSize(f.filesize_approx as number | undefined),
           estimatedBytes: size,
@@ -140,7 +94,6 @@ export async function GET(req: NextRequest) {
         };
       });
 
-    // Deduplicate audio formats
     const seenAudio = new Set<string>();
     const uniqueAudio = audioFormats.filter((f) => {
       const key = `${f.quality}_${f.ext}`;
@@ -149,8 +102,6 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    const allFormats = [...sortedHeights, ...uniqueAudio];
-
     return NextResponse.json({
       title: (info.title || info.fulltitle || "Sans titre") as string,
       author: (info.uploader || info.channel || info.creator || "Inconnu") as string,
@@ -158,12 +109,11 @@ export async function GET(req: NextRequest) {
       thumbnail: (info.thumbnail as string) || "",
       webpage_url: info.webpage_url as string || "",
       extractor: info.extractor as string || "",
-      formats: allFormats,
+      formats: [...sortedHeights, ...uniqueAudio],
     });
   } catch (err) {
     console.error("yt-dlp error:", err);
-    const message =
-      err instanceof Error ? err.message : "Impossible de récupérer les informations";
+    const message = err instanceof Error ? err.message : "Impossible de récupérer les informations";
 
     let hint: string | undefined;
     if (message.includes("Cookie") || message.includes("logged-in") || message.includes("login")) {
