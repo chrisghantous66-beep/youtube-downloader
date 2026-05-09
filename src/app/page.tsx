@@ -252,8 +252,18 @@ export default function Home() {
   const [downloadProgress, setDownloadProgress] = useState<DownloadProgress | null>(null);
   const [error, setError] = useState("");
   const [hint, setHint] = useState("");
-  const [cookiesText, setCookiesText] = useState("");
+  const [cookiesText, setCookiesText] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("vg_cookies") || "";
+    return "";
+  });
   const [showCookies, setShowCookies] = useState(false);
+
+  function updateCookies(value: string) {
+    setCookiesText(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("vg_cookies", value);
+    }
+  }
   const abortRef = useRef<AbortController | null>(null);
 
   const currentPlatform = PLATFORMS.find((p) => p.key === platform)!;
@@ -291,8 +301,9 @@ export default function Home() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Une erreur est survenue";
         setError(msg);
-        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("logged-in") || msg.includes("login")) {
-          setHint("Ajoutez vos cookies dans la section ci-dessous.");
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque")) {
+          setShowCookies(true);
+          setHint("YouTube bloque les IPs datacenter. Ajoutez vos cookies YouTube ci-dessous (1 seule fois, ils sont sauvegardés).");
         }
       } finally {
         setLoading(false);
@@ -491,25 +502,32 @@ export default function Home() {
               <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-              <span>Cookies {cookiesText.trim() ? "✓" : "(optionnel)"}</span>
-              <span className="text-zinc-600">— nécessaire pour Instagram/Facebook, recommandé pour YouTube</span>
+              <span>Cookies {cookiesText.trim() ? "✓ (actif)" : "(optionnel)"}</span>
+              <span className="text-zinc-600">— {cookiesText.trim() ? "activé pour toutes les plateformes" : "recommandé pour YouTube, obligatoire pour Instagram/Facebook"}</span>
             </button>
             {showCookies && (
               <div className="mt-2 space-y-2">
                 <textarea
                   value={cookiesText}
-                  onChange={(e) => setCookiesText(e.target.value)}
+                  onChange={(e) => updateCookies(e.target.value)}
                   placeholder="Collez ici le contenu de votre fichier cookies.txt (format Netscape)..."
                   rows={4}
                   className="w-full px-3 py-2 rounded-lg bg-zinc-900/60 border border-zinc-700/40 text-white placeholder:text-zinc-500 focus:outline-none focus:border-zinc-500/70 text-xs font-mono resize-y"
                 />
-                <p className="text-[10px] text-zinc-600">
-                  Extension{" "}
-                  <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer" className="text-cyan-500/60 hover:text-cyan-400 underline">
-                    Get cookies.txt
-                  </a>{" "}
-                  pour Chrome — exportez les cookies, ouvrez le fichier .txt et copiez-collez le contenu ici.
-                </p>
+                <div className="space-y-1">
+                  <p className="text-[10px] text-zinc-500">
+                    <span className="text-amber-400/80 font-medium">YouTube bloqué ?</span> Installez l'extension{" "}
+                    <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer" className="text-cyan-500/60 hover:text-cyan-400 underline">
+                      Get cookies.txt
+                    </a>
+                    {" "}→ allez sur youtube.com → exportez → copiez-collez le contenu ici.
+                  </p>
+                  {cookiesText.trim() && (
+                    <p className="text-[10px] text-emerald-400/70">
+                      Cookies sauvegardés — vous n'aurez plus à les remettre.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
           </div>
