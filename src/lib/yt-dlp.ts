@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { existsSync, chmodSync, writeFileSync } from "fs";
+import { existsSync, chmodSync } from "fs";
 import path from "path";
 
 let ytDlpPath: string | null = null;
@@ -34,24 +34,43 @@ async function ensureYtDlp(): Promise<string> {
   return dest;
 }
 
-function writeCookiesFile(cookiesContent: string): string {
-  // Filter to only keep YouTube-related cookies or keep all
-  const clean = cookiesContent.trim();
-  if (clean.length === 0) return "";
+function cookiesToHeader(cookiesContent: string): string | null {
+  // Parse Netscape cookie format and extract key=value pairs for YouTube/Google
+  const lines = cookiesContent.trim().split(/\r?\n/);
+  const pairs: string[] = [];
 
-  const tmpDir = isVercel ? "/tmp" : require("os").tmpdir();
-  const cookieFile = path.join(tmpDir, `.cookies-${Date.now()}.txt`);
-  writeFileSync(cookieFile, clean, "utf-8");
-  return cookieFile;
+  for (const line of lines) {
+    if (line.startsWith("#") || line.trim() === "") continue;
+    const parts = line.split("\t");
+    if (parts.length < 7) continue;
+
+    const domain = parts[0].trim();
+    const name = parts[5].trim();
+    const value = parts[6].trim();
+
+    // Only include YouTube and Google auth cookies
+    if (
+      domain.includes("youtube.com") ||
+      domain.includes(".youtube.com") ||
+      domain.includes("google.com") ||
+      domain.includes(".google.com")
+    ) {
+      pairs.push(`${name}=${value}`);
+    }
+  }
+
+  return pairs.length > 0 ? pairs.join("; ") : null;
 }
 
 function buildArgs(url: string, cookiesContent?: string): string[] {
   const args = ["--no-playlist", "--no-warnings"];
 
   if (cookiesContent && cookiesContent.trim().length > 0) {
-    const cookieFile = writeCookiesFile(cookiesContent);
-    if (cookieFile) {
-      args.push("--cookies", cookieFile);
+    const cookieHeader = cookiesToHeader(cookiesContent);
+    if (cookieHeader) {
+      // Use --add-header to inject cookies directly (no file needed)
+      // This works on Vercel where --cookies with a file has issues
+      args.push("--add-header", `Cookie: ${cookieHeader}`);
     }
   } else {
     // Without cookies on Vercel: use tv_embed client to avoid bot detection.
