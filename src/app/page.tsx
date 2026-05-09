@@ -353,7 +353,7 @@ export default function Home() {
       const reader = res.body?.getReader();
       if (!reader) throw new Error("Impossible de lire le flux de données");
 
-      const chunks: Uint8Array[] = [];
+      const chunks: BlobPart[] = [];
       let downloaded = 0;
       let lastTick = Date.now();
       let lastBytes = 0;
