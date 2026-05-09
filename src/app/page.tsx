@@ -254,9 +254,9 @@ export default function Home() {
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Erreur";
         setError(msg);
-        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque")) {
+        if (msg.includes("cookie") || msg.includes("Cookie") || msg.includes("bloque") || msg.includes("login") || msg.includes("rate-limit")) {
           setShowCookies(true);
-          setHint("Ajoutez vos cookies dans la section ci-dessous.");
+          setHint("Cette plateforme nécessite des cookies. Connectez-vous sur le site, puis exportez avec l'extension.");
         }
       } finally {
         setLoading(false);
@@ -451,7 +451,7 @@ export default function Home() {
             <svg className={`w-3 h-3 transition-transform ${showCookies ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-            COOKIES {cookiesText.trim() ? "● ACTIVE" : ""}
+            COOKIES {cookiesText.trim() ? "● ACTIVE" : "(REQUIRED)"}
           </button>
           {showCookies && (
             <div className="space-y-1.5">
@@ -460,12 +460,10 @@ export default function Home() {
                 rows={3}
                 className="w-full px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono resize-y"
                 style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }} />
-              <p className="text-[9px] tracking-wider font-mono" style={{ color: "#ffffff33" }}>
-                <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer"
-                  className="underline hover:text-white/60" style={{ color: platformCfg.neonColor }}>
-                  Get cookies.txt
-                </a>
-                {" "}→ export → paste here
+              <p className="text-[9px] tracking-wider font-mono leading-relaxed" style={{ color: "#ffffff33" }}>
+                1. <a href="https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc" target="_blank" rel="noopener noreferrer"
+                  className="underline" style={{ color: platformCfg.neonColor }}>Get cookies.txt</a>
+                {" "}→ 2. Login to Instagram + Facebook → 3. Export ALL cookies → 4. Paste here
               </p>
             </div>
           )}
