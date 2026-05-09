@@ -62,7 +62,7 @@ const PLATFORMS: {
     placeholder: "https://www.facebook.com/watch/?v=...",
     gradient: "from-blue-600 to-sky-500",
     glowColor: "rgba(37,99,235,0.6)",
-    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/v\/|video\/|plugins\/video)|fb\.watch\/)/,
+    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/|video\/|plugins\/video|photo\/\?fbid=)|fb\.watch\/)/,
   },
 ];
 
