@@ -353,7 +353,7 @@ export default function Home() {
       const reader = res.body?.getReader();
       if (!reader) throw new Error("Impossible de lire le flux de données");
 
-      const chunks: BlobPart[] = [];
+      const chunks: any[] = [];
       let downloaded = 0;
       let lastTick = Date.now();
       let lastBytes = 0;
@@ -396,7 +396,7 @@ export default function Home() {
       // Small delay to see the completed state
       await new Promise((r) => setTimeout(r, 400));
 
-      const blob = new Blob(chunks);
+      const blob = new Blob(chunks as BlobPart[]);
       const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = blobUrl;
