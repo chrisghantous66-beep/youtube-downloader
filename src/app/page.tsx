@@ -39,6 +39,7 @@ const PLATFORMS: {
   gradient: string;
   glowColor: string;
   needsAuth: boolean;
+  urlPattern: RegExp;
 }[] = [
   {
     key: "youtube",
@@ -48,6 +49,7 @@ const PLATFORMS: {
     gradient: "from-red-600 to-rose-600",
     glowColor: "rgba(239,68,68,0.6)",
     needsAuth: false,
+    urlPattern: /^(https?:\/\/)?(www\.|m\.)?(youtube\.com\/(watch\?v=|shorts\/|embed\/|v\/)|youtu\.be\/)/,
   },
   {
     key: "instagram",
@@ -57,6 +59,7 @@ const PLATFORMS: {
     gradient: "from-pink-500 to-purple-500",
     glowColor: "rgba(236,72,153,0.6)",
     needsAuth: true,
+    urlPattern: /^(https?:\/\/)?(www\.)?instagram\.com\/(reel\/|p\/|tv\/|stories\/)/,
   },
   {
     key: "facebook",
@@ -66,8 +69,22 @@ const PLATFORMS: {
     gradient: "from-blue-600 to-sky-500",
     glowColor: "rgba(37,99,235,0.6)",
     needsAuth: true,
+    urlPattern: /^(https?:\/\/)?(www\.|web\.|m\.)?(facebook\.com\/(watch\/?\?v=|reel\/|share\/v\/|video|plugins\/video)|fb\.watch\/)/,
   },
 ];
+
+function validateUrl(url: string, platform: Platform): string | null {
+  const cfg = PLATFORMS.find((p) => p.key === platform)!;
+  if (!cfg.urlPattern.test(url.trim())) {
+    const labels: Record<Platform, string> = {
+      youtube: "YouTube (youtube.com, youtu.be)",
+      instagram: "Instagram (instagram.com/reel/, /p/, /tv/)",
+      facebook: "Facebook (facebook.com, fb.watch)",
+    };
+    return `Ce lien ne correspond pas à ${labels[platform]}. Utilisez l'onglet approprié.`;
+  }
+  return null;
+}
 
 const BROWSERS = [
   { key: "chrome", label: "Chrome" },
@@ -294,6 +311,15 @@ export default function Home() {
       setError("");
       setHint("");
       setInfo(null);
+
+      // Validate URL matches selected platform
+      const validationError = validateUrl(url, currentPlatform.key);
+      if (validationError) {
+        setError(validationError);
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
 
       try {
