@@ -448,7 +448,7 @@ export default function Home() {
                 color: dark ? "#ffffff55" : "#00000040",
               }}>
               <span className="text-lg font-mono">{p.icon}</span>
-              <span className="hidden sm:inline tracking-wide text-xs">{p.label}</span>
+              <span className="tracking-wide text-xs">{p.label}</span>
             </button>
           ))}
         </div>
