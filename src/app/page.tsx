@@ -633,7 +633,7 @@ export default function Home() {
                       color: dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
                     }}>
                     <span className="text-base">{g.icon}</span>
-                    <span className="hidden sm:inline tracking-[0.1em]">{g.label}</span>
+                    <span className="tracking-[0.1em]">{g.label}</span>
                   </button>
                 ))}
               </div>
