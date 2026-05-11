@@ -433,6 +433,12 @@ export default function Home() {
       </header>
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-8">
+        {/* Instructions */}
+        <p className="text-center text-xs mb-6 font-mono tracking-wide"
+          style={{ color: dark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)" }}>
+          Copie le lien d'une vidéo Instagram ou Facebook et colle-le ici pour la télécharger.
+        </p>
+
         {/* Tabs */}
         <div className="flex gap-1 mb-6 rounded-xl p-1"
           style={{ background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", border: `1px solid ${dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}` }}>
