@@ -50,6 +50,7 @@ export default function SpaceInvaders({ dark, neonColor, active }: Props) {
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(3);
   const [highScore, setHighScore] = useState(0);
+  const [autoFire, setAutoFire] = useState(false);
   const [gameState, setGameState] = useState<"idle" | "playing" | "gameover" | "win">("idle");
 
   const stateRef = useRef({
@@ -67,8 +68,12 @@ export default function SpaceInvaders({ dark, neonColor, active }: Props) {
     shootCooldown: 400,
     moveLeft: false,
     moveRight: false,
+    autoFire: false,
   });
   const rafRef = useRef<number>(0);
+
+  // Sync autoFire to ref (runs every render, no stale closures)
+  stateRef.current.autoFire = autoFire;
 
   const reset = useCallback(() => {
     const s = stateRef.current;
@@ -342,6 +347,15 @@ export default function SpaceInvaders({ dark, neonColor, active }: Props) {
         s.enemyBullets.push({ x: shooter.x + ENEMY_W / 2, y: shooter.y + ENEMY_H, dy: 2.5 });
       }
 
+      // Auto-fire
+      if (s.autoFire && s.gameState === "playing") {
+        const now = performance.now();
+        if (now - s.lastShot >= s.shootCooldown) {
+          s.lastShot = now;
+          s.bullets.push({ x: s.playerX + PLAYER_W / 2, y: PLAYER_Y, dy: -BULLET_SPEED });
+        }
+      }
+
       // Bullet-enemy collisions
       for (const b of s.bullets) {
         for (const e of s.enemies) {
@@ -495,10 +509,21 @@ export default function SpaceInvaders({ dark, neonColor, active }: Props) {
           background: dark ? "#0d0d1a" : "#e8e8f0",
         }}
       />
-      <div className="flex items-center justify-between mt-1.5 px-1">
+      <div className="flex items-center justify-between mt-1.5 px-1 gap-2">
         <span className="text-[9px] tracking-[0.15em] uppercase font-mono" style={{ color: dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.4)" }}>
           Arrows · Space · Touch
         </span>
+        <button type="button" onClick={() => setAutoFire(!autoFire)}
+          className="px-2 py-0.5 rounded text-[9px] tracking-[0.15em] uppercase font-mono transition-all cursor-pointer"
+          style={{
+            background: autoFire
+              ? `${neonColor}22`
+              : dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+            border: `1px solid ${autoFire ? neonColor + "55" : dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
+            color: autoFire ? neonColor : dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
+          }}>
+          AUTO {autoFire ? "ON" : "OFF"}
+        </button>
         <span className="text-[9px] tracking-[0.15em] uppercase font-mono" style={{ color: neonColor }}>
           SCORE {score}
         </span>

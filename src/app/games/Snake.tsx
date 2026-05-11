@@ -43,6 +43,7 @@ export default function Snake({ dark, neonColor, active }: Props) {
     speed: INITIAL_SPEED,
   });
   const rafRef = useRef<number>(0);
+  const startRef = useRef<(dir: Point) => void>(() => {});
 
   const reset = useCallback(() => {
     const s = stateRef.current;
@@ -323,6 +324,7 @@ export default function Snake({ dark, neonColor, active }: Props) {
     canvas.addEventListener("touchstart", onTouchStart, { passive: true });
     canvas.addEventListener("touchend", onTouchEnd);
     window.addEventListener("keydown", onKey);
+    startRef.current = start;
 
     // Load high score
     try {
@@ -357,11 +359,42 @@ export default function Snake({ dark, neonColor, active }: Props) {
       />
       <div className="flex items-center justify-between mt-1.5 px-1">
         <span className="text-[9px] tracking-[0.15em] uppercase font-mono" style={{ color: dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.4)" }}>
-          Arrows · WASD · Swipe
+          Arrows · WASD · D-pad
         </span>
         <span className="text-[9px] tracking-[0.15em] uppercase font-mono" style={{ color: neonColor }}>
           SCORE {score}
         </span>
+      </div>
+      {/* D-pad */}
+      <div className="mt-2 grid grid-cols-3 gap-1.5 w-[120px] mx-auto select-none">
+        <div />
+        <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 0, y: -1 }); }}
+          className="h-9 rounded-md flex items-center justify-center text-sm transition-all active:scale-90 cursor-pointer"
+          style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
+          ▲
+        </button>
+        <div />
+        <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: -1, y: 0 }); }}
+          className="h-9 rounded-md flex items-center justify-center text-sm transition-all active:scale-90 cursor-pointer"
+          style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
+          ◄
+        </button>
+        <div className="h-9 rounded-md flex items-center justify-center text-[10px] font-mono"
+          style={{ color: dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)" }}>
+          ●
+        </div>
+        <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 1, y: 0 }); }}
+          className="h-9 rounded-md flex items-center justify-center text-sm transition-all active:scale-90 cursor-pointer"
+          style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
+          ►
+        </button>
+        <div />
+        <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 0, y: 1 }); }}
+          className="h-9 rounded-md flex items-center justify-center text-sm transition-all active:scale-90 cursor-pointer"
+          style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
+          ▼
+        </button>
+        <div />
       </div>
     </div>
   );
