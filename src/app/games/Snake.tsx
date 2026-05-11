@@ -345,12 +345,12 @@ export default function Snake({ dark, neonColor, active }: Props) {
   }, [active, dark, neonColor, reset]);
 
   return (
-    <div className="relative w-full max-w-[320px] mx-auto">
+    <div className="relative w-full">
       <canvas
         ref={canvasRef}
         width={W}
         height={H}
-        className="w-full rounded-lg cursor-pointer block"
+        className="w-full max-w-[320px] mx-auto rounded-lg cursor-pointer block"
         style={{
           border: `1px solid ${dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.1)"}`,
           boxShadow: `0 0 30px ${neonColor}15`,
@@ -366,31 +366,31 @@ export default function Snake({ dark, neonColor, active }: Props) {
         </span>
       </div>
       {/* D-pad */}
-      <div className="mt-2 grid grid-cols-3 gap-2 w-[180px] mx-auto select-none">
+      <div className="mt-3 grid grid-cols-3 gap-2.5 w-full select-none">
         <div />
         <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 0, y: -1 }); }}
-          className="h-12 rounded-lg flex items-center justify-center text-xl transition-all active:scale-90 cursor-pointer"
+          className="h-14 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 cursor-pointer"
           style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
           ▲
         </button>
         <div />
         <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: -1, y: 0 }); }}
-          className="h-12 rounded-lg flex items-center justify-center text-xl transition-all active:scale-90 cursor-pointer"
+          className="h-14 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 cursor-pointer"
           style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
           ◄
         </button>
-        <div className="h-12 rounded-lg flex items-center justify-center text-xs font-mono"
+        <div className="h-14 rounded-xl flex items-center justify-center text-xs font-mono"
           style={{ color: dark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)" }}>
           ●
         </div>
         <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 1, y: 0 }); }}
-          className="h-12 rounded-lg flex items-center justify-center text-xl transition-all active:scale-90 cursor-pointer"
+          className="h-14 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 cursor-pointer"
           style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
           ►
         </button>
         <div />
         <button type="button" onPointerDown={(e) => { e.preventDefault(); startRef.current({ x: 0, y: 1 }); }}
-          className="h-12 rounded-lg flex items-center justify-center text-xl transition-all active:scale-90 cursor-pointer"
+          className="h-14 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 cursor-pointer"
           style={{ background: dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, color: neonColor }}>
           ▼
         </button>
