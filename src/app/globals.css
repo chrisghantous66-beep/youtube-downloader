@@ -1,1 +1,28 @@
 @import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --game-bg: #0d0d1a;
+  --game-bg-light: #e8e8f0;
+  --game-text: #ffffff;
+  --game-text-light: #1a1a2e;
+  --game-grid: rgba(255, 255, 255, 0.04);
+  --game-grid-light: rgba(0, 0, 0, 0.06);
+  --game-border: rgba(255, 255, 255, 0.08);
+  --game-border-light: rgba(0, 0, 0, 0.1);
+  --game-overlay: rgba(0, 0, 0, 0.75);
+  --game-overlay-light: rgba(255, 255, 255, 0.85);
+}
+
+html {
+  color-scheme: dark;
+}
+
+html:not(.dark) {
+  color-scheme: light;
+}
+
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}

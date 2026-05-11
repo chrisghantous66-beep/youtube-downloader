@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { useTheme } from "./theme";
+import Breakout from "./games/Breakout";
+import Snake from "./games/Snake";
+import SpaceInvaders from "./games/SpaceInvaders";
 
 type Format = {
   id: string;
@@ -219,6 +223,8 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [showAuth, setShowAuth] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const [game, setGame] = useState<"breakout" | "snake" | "spaceinvaders">("breakout");
+  const { dark, toggle: toggleTheme } = useTheme();
 
   const platformCfg = PLATFORMS.find((p) => p.key === platform)!;
 
@@ -347,14 +353,28 @@ export default function Home() {
   const videoFormats = info?.formats.filter((f) => !f.isAudio) || [];
 
   return (
-    <main className="min-h-screen text-white selection:bg-white/20"
-      style={{ background: "linear-gradient(180deg, #080812 0%, #0a0a14 50%, #080812 100%)" }}>
+    <main className="min-h-screen selection:bg-white/20"
+      style={{
+        background: dark
+          ? "linear-gradient(180deg, #080812 0%, #0a0a14 50%, #080812 100%)"
+          : "linear-gradient(180deg, #f0f0f5 0%, #f8f8fc 50%, #f0f0f5 100%)",
+        color: dark ? "#fff" : "#1a1a2e",
+      }}>
 
       {/* Global scanlines & grid */}
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.025]"
-        style={{ backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 2px, #fff 2px, #fff 3px)" }} />
-      <div className="fixed inset-0 pointer-events-none z-0 opacity-[0.03]"
-        style={{ backgroundImage: "linear-gradient(#fff2 1px, transparent 1px), linear-gradient(90deg, #fff2 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
+      <div className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          opacity: dark ? 0.025 : 0.015,
+          backgroundImage: `repeating-linear-gradient(0deg, transparent, transparent 2px, ${dark ? "#fff" : "#000"} 2px, ${dark ? "#fff" : "#000"} 3px)`,
+        }} />
+      <div className="fixed inset-0 pointer-events-none z-0"
+        style={{
+          opacity: dark ? 0.03 : 0.02,
+          backgroundImage: dark
+            ? "linear-gradient(#fff2 1px, transparent 1px), linear-gradient(90deg, #fff2 1px, transparent 1px)"
+            : "linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+        }} />
 
       {/* Overlay */}
       {downloadProgress && (
@@ -370,7 +390,10 @@ export default function Home() {
 
       {/* Header */}
       <header className="relative z-30 border-b backdrop-blur-xl sticky top-0"
-        style={{ background: "rgba(8,8,18,0.85)", borderColor: `${platformCfg.neonColor}18` }}>
+        style={{
+          background: dark ? "rgba(8,8,18,0.85)" : "rgba(255,255,255,0.88)",
+          borderColor: `${platformCfg.neonColor}18`,
+        }}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg flex items-center justify-center text-base font-bold"
@@ -382,16 +405,37 @@ export default function Home() {
               <p className="text-[10px] tracking-[0.15em] uppercase font-mono" style={{ color: `${platformCfg.neonColor}88` }}>Downloader</p>
             </div>
           </div>
-          <span className="text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: `${platformCfg.neonColor}55` }}>
-            {platformCfg.label}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: `${platformCfg.neonColor}55` }}>
+              {platformCfg.label}
+            </span>
+            <button onClick={toggleTheme}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-xs transition-all cursor-pointer"
+              style={{
+                background: dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)",
+                border: `1px solid ${dark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
+                color: dark ? "#ffd54f" : "#ff8f00",
+              }}
+              title={dark ? "Light mode" : "Dark mode"}>
+              {dark ? (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="5" />
+                  <path strokeLinecap="round" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
       <div className="relative z-10 max-w-2xl mx-auto px-4 py-8">
         {/* Tabs */}
         <div className="flex gap-1 mb-6 rounded-xl p-1"
-          style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
+          style={{ background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", border: `1px solid ${dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.05)"}` }}>
           {PLATFORMS.map((p) => (
             <button key={p.key} onClick={() => { setPlatform(p.key); setInfo(null); setError(""); setHint(""); setUrl(""); }}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer"
@@ -401,7 +445,7 @@ export default function Home() {
                 color: p.neonColor,
                 boxShadow: `0 0 25px ${p.bgGlow}`,
               } : {
-                color: "#ffffff55",
+                color: dark ? "#ffffff55" : "#00000040",
               }}>
               <span className="text-lg font-mono">{p.icon}</span>
               <span className="hidden sm:inline tracking-wide text-xs">{p.label}</span>
@@ -417,11 +461,12 @@ export default function Home() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder={platformCfg.placeholder}
-              className="flex-1 px-4 py-3 rounded-xl text-sm text-white placeholder:text-white/20 focus:outline-none transition-all duration-200 font-mono"
+              className="flex-1 px-4 py-3 rounded-xl text-sm focus:outline-none transition-all duration-200 font-mono"
               style={{
-                background: "rgba(255,255,255,0.03)",
-                border: `1px solid rgba(255,255,255,0.06)`,
-                boxShadow: `inset 0 0 20px rgba(0,0,0,0.3)`,
+                background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)",
+                border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}`,
+                boxShadow: dark ? "inset 0 0 20px rgba(0,0,0,0.3)" : "inset 0 0 10px rgba(0,0,0,0.04)",
+                color: dark ? "#fff" : "#1a1a2e",
               }}
               required
             />
@@ -448,7 +493,7 @@ export default function Home() {
           {/* Auth toggle (optional) */}
           <button type="button" onClick={() => setShowAuth(!showAuth)}
             className="flex items-center gap-1.5 text-[10px] tracking-wider uppercase font-mono transition-colors cursor-pointer"
-            style={{ color: username.trim() ? "#22ffaa" : "#ffffff33" }}>
+            style={{ color: username.trim() ? "#22ffaa" : dark ? "#ffffff33" : "#00000033" }}>
             <svg className={`w-3 h-3 transition-transform ${showAuth ? "rotate-90" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
@@ -461,16 +506,24 @@ export default function Home() {
                 value={username}
                 onChange={(e) => updateUsername(e.target.value)}
                 placeholder="Username"
-                className="px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                className="px-3 py-2 rounded-lg text-xs focus:outline-none font-mono"
+                style={{
+                  background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)",
+                  border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}`,
+                  color: dark ? "#fff" : "#1a1a2e",
+                }}
               />
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Password"
-                className="px-3 py-2 rounded-lg text-xs text-white placeholder:text-white/15 focus:outline-none font-mono"
-                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+                className="px-3 py-2 rounded-lg text-xs focus:outline-none font-mono"
+                style={{
+                  background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)",
+                  border: `1px solid ${dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.08)"}`,
+                  color: dark ? "#fff" : "#1a1a2e",
+                }}
               />
             </div>
           )}
@@ -494,7 +547,7 @@ export default function Home() {
         {/* Video info */}
         {info && !loading && (
           <div className="relative rounded-2xl overflow-hidden"
-            style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${platformCfg.neonColor}22` }}>
+            style={{ background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", border: `1px solid ${platformCfg.neonColor}22` }}>
             <Corners color={platformCfg.neonColor} />
 
             {info.thumbnail && (
@@ -510,11 +563,11 @@ export default function Home() {
 
             <div className="p-5">
               <h2 className="font-semibold text-sm leading-snug line-clamp-2 mb-1 tracking-wide">{info.title}</h2>
-              <p className="text-[11px] font-mono tracking-wider mb-5" style={{ color: "#ffffff44" }}>{info.author}</p>
+              <p className="text-[11px] font-mono tracking-wider mb-5" style={{ color: dark ? "#ffffff44" : "#00000044" }}>{info.author}</p>
 
               {videoFormats.length > 0 && (
                 <div>
-                  <h3 className="text-[9px] tracking-[0.2em] uppercase font-mono mb-3 flex items-center gap-2" style={{ color: "#ffffff33" }}>
+                  <h3 className="text-[9px] tracking-[0.2em] uppercase font-mono mb-3 flex items-center gap-2" style={{ color: dark ? "#ffffff33" : "#00000033" }}>
                     <span className="w-1 h-1 rounded-full" style={{ backgroundColor: platformCfg.neonColor }} />
                     QUALITY ({videoFormats.length})
                   </h3>
@@ -551,24 +604,54 @@ export default function Home() {
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Mini Arcade */}
         {!info && !loading && !error && (
-          <div className="text-center py-24 relative">
-            <div className="w-20 h-20 rounded-2xl mx-auto mb-6 flex items-center justify-center text-3xl"
-              style={{ background: `linear-gradient(135deg, ${platformCfg.neonColor}22, ${platformCfg.neonColor}08)`, border: `1px solid ${platformCfg.neonColor}33`, boxShadow: `0 0 60px ${platformCfg.bgGlow}` }}>
-              <span className="font-mono" style={{ color: platformCfg.neonColor }}>{platformCfg.icon}</span>
+          <div className="relative rounded-2xl overflow-hidden mb-6"
+            style={{
+              background: dark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)",
+              border: `1px solid ${platformCfg.neonColor}22`,
+            }}>
+            <Corners color={platformCfg.neonColor} />
+
+            <div className="p-4">
+              {/* Game tabs */}
+              <div className="flex gap-1 mb-4 rounded-lg p-0.5"
+                style={{ background: dark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)", border: `1px solid ${dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>
+                {([
+                  { key: "breakout", label: "Breakout", icon: "▣" },
+                  { key: "snake", label: "Snake", icon: "◈" },
+                  { key: "spaceinvaders", label: "Invaders", icon: "◆" },
+                ] as const).map((g) => (
+                  <button key={g.key} onClick={() => setGame(g.key)}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-mono transition-all duration-200 cursor-pointer"
+                    style={game === g.key ? {
+                      background: `linear-gradient(135deg, ${platformCfg.neonColor}22, ${platformCfg.neonColor}0d)`,
+                      border: `1px solid ${platformCfg.neonColor}44`,
+                      color: platformCfg.neonColor,
+                      boxShadow: `0 0 15px ${platformCfg.bgGlow}`,
+                    } : {
+                      color: dark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.35)",
+                    }}>
+                    <span className="text-base">{g.icon}</span>
+                    <span className="hidden sm:inline tracking-[0.1em]">{g.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Game canvas */}
+              <div className="py-2">
+                {game === "breakout" && <Breakout dark={dark} neonColor={platformCfg.neonColor} active={!info && !loading && !error} />}
+                {game === "snake" && <Snake dark={dark} neonColor={platformCfg.neonColor} active={!info && !loading && !error} />}
+                {game === "spaceinvaders" && <SpaceInvaders dark={dark} neonColor={platformCfg.neonColor} active={!info && !loading && !error} />}
+              </div>
             </div>
-            <h2 className="text-base font-semibold mb-2 tracking-wide">READY</h2>
-            <p className="text-xs tracking-wider font-mono max-w-xs mx-auto" style={{ color: "#ffffff33" }}>
-              Paste a {platformCfg.label} link above to download
-            </p>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <footer className="relative z-10 border-t" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-        <div className="max-w-2xl mx-auto px-4 py-4 text-center text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: "#ffffff18" }}>
+      <footer className="relative z-10 border-t" style={{ borderColor: dark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.06)" }}>
+        <div className="max-w-2xl mx-auto px-4 py-4 text-center text-[9px] tracking-[0.2em] uppercase font-mono" style={{ color: dark ? "#ffffff18" : "#00000015" }}>
           Powered by yt-dlp · Native quality
         </div>
       </footer>
